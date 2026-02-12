@@ -1,2 +1,3 @@
-# btc-monthly-liquidity-mapper-interactive-candlestick-chart-auto-liquidity-levels
-Exported from Caffeine project: BTC Monthly Liquidity Mapper (Interactive Candlestick Chart + Auto Liquidity Levels/Zones)
+## 
+
+To run app build and run docker image: `docker build -t app . docker run -it --network host app`

@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+    
+    /* Financial charting theme - Dark amber/gold palette */
+    --background: 0.12 0 0;
+    --foreground: 0.95 0 0;
+    --card: 0.16 0 0;
+    --card-foreground: 0.95 0 0;
+    --popover: 0.18 0 0;
+    --popover-foreground: 0.95 0 0;
+    --primary: 0.75 0.15 45;
+    --primary-foreground: 0.12 0 0;
+    --secondary: 0.25 0 0;
+    --secondary-foreground: 0.95 0 0;
+    --muted: 0.25 0 0;
+    --muted-foreground: 0.65 0 0;
+    --accent: 0.30 0 0;
+    --accent-foreground: 0.95 0 0;
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 0.95 0 0;
+    --border: 0.30 0 0;
+    --input: 0.25 0 0;
+    --ring: 0.75 0.15 45;
+    
+    /* Chart colors - Financial theme */
+    --chart-1: 0.70 0.18 50;
+    --chart-2: 0.65 0.20 140;
+    --chart-3: 0.60 0.15 200;
+    --chart-4: 0.75 0.12 30;
+    --chart-5: 0.68 0.16 80;
+    
+    --sidebar: 0.16 0 0;
+    --sidebar-foreground: 0.95 0 0;
+    --sidebar-primary: 0.75 0.15 45;
+    --sidebar-primary-foreground: 0.12 0 0;
+    --sidebar-accent: 0.25 0 0;
+    --sidebar-accent-foreground: 0.95 0 0;
+    --sidebar-border: 0.30 0 0;
+    --sidebar-ring: 0.75 0.15 45;
+  }
+
+  .dark {
+    --background: 0.12 0 0;
+    --foreground: 0.95 0 0;
+    --card: 0.16 0 0;
+    --card-foreground: 0.95 0 0;
+    --popover: 0.18 0 0;
+    --popover-foreground: 0.95 0 0;
+    --primary: 0.75 0.15 45;
+    --primary-foreground: 0.12 0 0;
+    --secondary: 0.25 0 0;
+    --secondary-foreground: 0.95 0 0;
+    --muted: 0.25 0 0;
+    --muted-foreground: 0.65 0 0;
+    --accent: 0.30 0 0;
+    --accent-foreground: 0.95 0 0;
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 0.95 0 0;
+    --border: 0.30 0 0;
+    --input: 0.25 0 0;
+    --ring: 0.75 0.15 45;
+    
+    --chart-1: 0.70 0.18 50;
+    --chart-2: 0.65 0.20 140;
+    --chart-3: 0.60 0.15 200;
+    --chart-4: 0.75 0.12 30;
+    --chart-5: 0.68 0.16 80;
+    
+    --sidebar: 0.16 0 0;
+    --sidebar-foreground: 0.95 0 0;
+    --sidebar-primary: 0.75 0.15 45;
+    --sidebar-primary-foreground: 0.12 0 0;
+    --sidebar-accent: 0.25 0 0;
+    --sidebar-accent-foreground: 0.95 0 0;
+    --sidebar-border: 0.30 0 0;
+    --sidebar-ring: 0.75 0.15 45;
+  }
+
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}

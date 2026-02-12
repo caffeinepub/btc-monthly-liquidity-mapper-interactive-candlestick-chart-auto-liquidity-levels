@@ -1,0 +1,16 @@
+{
+  "frontend/src/App.tsx": "Main application component that wraps the liquidity mapper page with ThemeProvider and Toaster for notifications.",
+  "frontend/src/pages/LiquidityMapperPage.tsx": "Primary page component that orchestrates data fetching, displays loading/error/empty states, and renders the BTC monthly chart with header and footer.",
+  "frontend/src/components/ChartStates.tsx": "Reusable UI components for displaying loading, error, and empty states with provider-agnostic copy and consistent styling with retry functionality.",
+  "frontend/src/components/BtcMonthlyChart.tsx": "Interactive candlestick chart component using recharts library with custom Bar shapes to render candlesticks, displaying BTC monthly data with automated liquidity lines as reference lines and liquidity boxes as shaded reference areas with OHLC tooltips.",
+  "frontend/src/features/data/types.ts": "Type definitions for candle data structures with provider-agnostic normalization helpers for Binance klines and CoinGecko OHLC responses into the unified Candle interface.",
+  "frontend/src/features/data/useMonthlyCandles.ts": "React Query hook that fetches BTC monthly candles from Binance public API as primary source with automatic fallback to CoinGecko, includes timeout handling and sequential retry logic with proper TypeScript type assertions for array mapping.",
+  "frontend/src/features/liquidity/types.ts": "Type definitions for liquidity model including lines, boxes, and their lifecycle metadata.",
+  "frontend/src/features/liquidity/liquidityAlgorithm.ts": "Core algorithm that implements automated liquidity detection logic including initial lines, consecutive opposite candle detection, breakout tracking, reversal structure identification, and box invalidation rules.",
+  "frontend/src/features/liquidity/useLiquidityModel.ts": "React hook that memoizes the liquidity model computation from candle data for efficient rendering.",
+  "frontend/src/hooks/useQueries.ts": "Placeholder file for future backend query hooks; currently data is fetched client-side from CoinGecko.",
+  "frontend/src/index.css": "Global styles with OKLCH color system defining a dark financial charting theme using amber/gold palette instead of blue/purple.",
+  "frontend/tailwind.config.js": "Tailwind configuration with custom font families, extended color tokens, and financial charting theme customizations.",
+  "frontend/package.json": "Package configuration with lightweight-charts dependency added for candlestick charting functionality.",
+  "frontend/src/features/data/fetchUtils.ts": "Reusable fetch utilities for market data requests with AbortController-based timeout, response validation, error classification, and user-friendly error handling."
+}

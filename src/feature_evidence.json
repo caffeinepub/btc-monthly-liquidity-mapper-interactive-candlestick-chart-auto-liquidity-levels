@@ -1,0 +1,61 @@
+{
+  "kind": "feature_evidence_report",
+  "features": [
+    {
+      "featureId": "feature-replace-the-current-coingecko-based-monthly-candle-fetch-daily-aggregation-with-a-faster-and-more-reliable-free-public-endpoint-no-api-key-that-can-return-btc-monthly-1m-ohlcv-directly-while-keeping-the-frontend-candle-format-stable-for-charting",
+      "featureTitle": "Replace the current CoinGecko-based monthly candle fetch (daily aggregation) with a faster and more reliable free public endpoint (no API key) that can return BTC monthly (1M) OHLCV directly, while keeping the frontend Candle format stable for charting.",
+      "files": [
+        "frontend/src/features/data/types.ts",
+        "frontend/src/features/data/useMonthlyCandles.ts"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-8"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-add-resilient-client-side-fetching-behavior-for-monthly-candles-to-prevent-intermittent-endpoint-failures-from-breaking-the-btc-chart-page-timeout-abort-clearer-error-classification-and-fallback-to-a-secondary-free-public-endpoint-if-the-primary-fails",
+      "featureTitle": "Add resilient client-side fetching behavior for monthly candles to prevent intermittent endpoint failures from breaking the BTC chart page (timeout/abort, clearer error classification, and fallback to a secondary free public endpoint if the primary fails).",
+      "files": [
+        "frontend/src/features/data/fetchUtils.ts",
+        "frontend/src/features/data/useMonthlyCandles.ts"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-9"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-update-loading-error-ui-copy-on-the-btc-chart-page-so-it-does-not-mention-a-specific-provider-e-g-coingecko-and-instead-references-market-data-generically",
+      "featureTitle": "Update loading/error UI copy on the BTC chart page so it does not mention a specific provider (e.g., CoinGecko) and instead references “market data” generically.",
+      "files": [
+        "frontend/src/components/ChartStates.tsx"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-10"
+      ],
+      "confidence": "high"
+    }
+  ]
+}

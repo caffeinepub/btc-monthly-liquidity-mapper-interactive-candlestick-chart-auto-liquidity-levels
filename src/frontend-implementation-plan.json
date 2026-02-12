@@ -1,0 +1,65 @@
+{
+  "kind": "implementation_plan",
+  "version": "1.0",
+  "title": "Harden BTC monthly candle fetching with reliable OHLCV sources and provider-agnostic UI copy",
+  "requirements": [
+    {
+      "id": "REQ-8",
+      "summary": "Switch monthly (1M) BTC candle fetching to a fast, free public OHLCV source that returns monthly candles directly while keeping the Candle format stable.",
+      "acceptanceCriteria": [
+        "The BTC chart page loads and renders monthly candles without showing the \"Failed to Load Data\" state under normal network conditions.",
+        "Monthly candle data is fetched from a free, public endpoint that does not require an API key, and the app no longer relies on aggregating daily prices into monthly candles as its primary path.",
+        "The returned dataset is normalized into the existing Candle interface (time in ms; open/high/low/close numbers; volume present even if 0) and remains compatible with BtcMonthlyChart and liquidity model computations."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/features/data/types.ts",
+          "operation": "modify",
+          "description": "Add provider-agnostic normalization helpers to convert a direct monthly OHLCV payload into the existing Candle interface (time in ms; numeric OHLC; volume always present, defaulting to 0 when missing) while keeping existing Candle and any existing converters stable."
+        },
+        {
+          "path": "frontend/src/features/data/useMonthlyCandles.ts",
+          "operation": "modify",
+          "description": "Replace the CoinGecko daily-to-monthly aggregation as the primary path with a direct monthly (1M) OHLCV fetch from a free public source (no API key) and normalize results into the existing Candle[] shape consumed by BtcMonthlyChart and liquidity computations."
+        }
+      ]
+    },
+    {
+      "id": "REQ-9",
+      "summary": "Add resilient client-side fetch behavior for monthly candles (timeout/abort, clearer error classification, and automatic fallback to a secondary free public source).",
+      "acceptanceCriteria": [
+        "If the primary endpoint request fails (network error, non-2xx, invalid payload, or timeout), the app automatically attempts at least one fallback free public endpoint before showing an error state.",
+        "Requests have a reasonable timeout using AbortController so the UI does not hang indefinitely on slow responses.",
+        "When all attempts fail, the error state remains user-friendly (no raw stack traces), and the Retry button triggers a fresh attempt (including fallback behavior)."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/features/data/fetchUtils.ts",
+          "operation": "create",
+          "description": "Create reusable fetch helpers for market-data requests, including AbortController-based timeouts, basic response validation, and error classification suitable for user-friendly messaging (no provider names)."
+        },
+        {
+          "path": "frontend/src/features/data/useMonthlyCandles.ts",
+          "operation": "modify",
+          "description": "Implement sequential attempts (primary then at least one fallback) using the new fetch utilities; validate payloads before normalization; on total failure throw a concise, user-friendly Error message; ensure React Query refetch triggers a full fresh attempt including fallback behavior."
+        }
+      ]
+    },
+    {
+      "id": "REQ-10",
+      "summary": "Update BTC chart loading/error UI copy to be provider-agnostic and refer to “market data” generically.",
+      "acceptanceCriteria": [
+        "The loading state text no longer says it is “Fetching monthly candles from CoinGecko...”.",
+        "All user-facing text remains in English.",
+        "The error state continues to provide a clear message and a working Retry action."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/ChartStates.tsx",
+          "operation": "modify",
+          "description": "Update the Loading and default Error copy to reference “market data” generically (no provider names) while keeping the existing Retry button behavior intact."
+        }
+      ]
+    }
+  ]
+}
