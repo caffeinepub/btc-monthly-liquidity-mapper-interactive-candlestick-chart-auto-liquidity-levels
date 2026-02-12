@@ -45,7 +45,7 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
         low: candle.low,
         close: candle.close,
         range: [Math.min(candle.open, candle.close), Math.max(candle.open, candle.close)] as [number, number],
-        color: isGreen ? 'rgba(38, 166, 154, 1)' : 'rgba(239, 83, 80, 1)',
+        color: isGreen ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))',
       };
     });
   }, [candles]);
@@ -156,38 +156,53 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
         <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
           <defs>
             <linearGradient id="bullishGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(38, 166, 154, 0.8)" />
-              <stop offset="100%" stopColor="rgba(38, 166, 154, 0.2)" />
+              <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.8} />
+              <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0.2} />
             </linearGradient>
             <linearGradient id="bearishGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(239, 83, 80, 0.8)" />
-              <stop offset="100%" stopColor="rgba(239, 83, 80, 0.2)" />
+              <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity={0.8} />
+              <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity={0.2} />
             </linearGradient>
           </defs>
 
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
           <XAxis
             dataKey="time"
-            stroke="rgba(255, 255, 255, 0.5)"
-            tick={{ fill: 'rgba(255, 255, 255, 0.7)', fontSize: 11 }}
+            stroke="hsl(var(--muted-foreground))"
+            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
             angle={-45}
             textAnchor="end"
             height={80}
           />
           <YAxis
             domain={[priceRange.min, priceRange.max]}
-            stroke="rgba(255, 255, 255, 0.5)"
-            tick={{ fill: 'rgba(255, 255, 255, 0.7)', fontSize: 11 }}
+            stroke="hsl(var(--muted-foreground))"
+            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
             tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
           />
           <Tooltip content={<CustomTooltip />} />
 
-          {/* Liquidity boxes */}
+          {/* Liquidity boxes with 3-state rendering */}
           {boxes.map((box, idx) => {
             const startIndex = candles.findIndex((c) => c.time >= box.createdAt);
             if (startIndex === -1) return null;
 
-            const boxColor = box.isActive ? 'rgba(224, 152, 60, 0.12)' : 'rgba(128, 128, 128, 0.08)';
+            // 3-state color system
+            let fillColor: string;
+            let strokeColor: string;
+            let fillOpacity: number;
+            
+            if (box.state === 'active') {
+              // Active: Strong highlight (yellow/orange)
+              fillColor = 'hsl(var(--liquidity-active))';
+              strokeColor = 'hsl(var(--liquidity-active-border))';
+              fillOpacity = 0.2;
+            } else {
+              // Untouched: Neutral (soft blue/gray)
+              fillColor = 'hsl(var(--liquidity-untouched))';
+              strokeColor = 'hsl(var(--liquidity-untouched-border))';
+              fillOpacity = 0.15;
+            }
 
             return (
               <ReferenceArea
@@ -196,11 +211,11 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
                 x2={chartData[chartData.length - 1]?.time}
                 y1={box.minPrice}
                 y2={box.maxPrice}
-                fill={boxColor}
-                fillOpacity={1}
-                stroke={box.isActive ? 'rgba(224, 152, 60, 0.3)' : 'rgba(128, 128, 128, 0.2)'}
-                strokeWidth={1}
-                strokeDasharray="3 3"
+                fill={fillColor}
+                fillOpacity={fillOpacity}
+                stroke={strokeColor}
+                strokeWidth={box.state === 'active' ? 1.5 : 1}
+                strokeDasharray={box.state === 'active' ? '4 2' : '3 3'}
               />
             );
           })}
@@ -210,12 +225,12 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
             <ReferenceLine
               key={`line-${idx}`}
               y={line.price}
-              stroke="rgba(224, 152, 60, 0.8)"
+              stroke="hsl(var(--accent))"
               strokeWidth={1}
               strokeDasharray="5 5"
               label={{
                 value: 'Liq',
-                fill: 'rgba(224, 152, 60, 1)',
+                fill: 'hsl(var(--accent))',
                 fontSize: 10,
                 position: 'right',
               }}
@@ -233,23 +248,23 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
 
       <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
         <div className="flex items-center gap-2">
-          <div className="h-3 w-8 rounded-sm border border-[rgba(224,152,60,0.5)] bg-[rgba(224,152,60,0.2)]" />
+          <div className="h-3 w-8 rounded-sm border border-[hsl(var(--accent))] bg-[hsl(var(--accent))]" style={{ opacity: 0.3 }} />
           <span className="text-muted-foreground">Liquidity Line</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-8 rounded-sm border border-[rgba(224,152,60,0.3)] bg-[rgba(224,152,60,0.15)]" />
+          <div className="h-3 w-8 rounded-sm border-[1.5px] border-[hsl(var(--liquidity-active-border))] bg-[hsl(var(--liquidity-active))]" style={{ opacity: 0.25 }} />
           <span className="text-muted-foreground">Active Liquidity Zone</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-8 rounded-sm border border-[rgba(128,128,128,0.2)] bg-[rgba(128,128,128,0.1)]" />
-          <span className="text-muted-foreground">Inactive Zone</span>
+          <div className="h-3 w-8 rounded-sm border border-[hsl(var(--liquidity-untouched-border))] bg-[hsl(var(--liquidity-untouched))]" style={{ opacity: 0.2 }} />
+          <span className="text-muted-foreground">Untouched Liquidity Zone</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-sm bg-[rgba(38,166,154,1)]" />
+          <div className="h-3 w-3 rounded-sm bg-[hsl(var(--chart-2))]" />
           <span className="text-muted-foreground">Bullish</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-sm bg-[rgba(239,83,80,1)]" />
+          <div className="h-3 w-3 rounded-sm bg-[hsl(var(--destructive))]" />
           <span className="text-muted-foreground">Bearish</span>
         </div>
       </div>

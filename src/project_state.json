@@ -1,16 +1,18 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 5,
-  "summary": "Web-based app that loads real BTC historical data (free endpoint) and displays an interactive monthly candlestick chart with automated, dynamic liquidity level detection (horizontal lines + wick-based liquidity boxes) using consecutive opposite candle and breakout structure logic, including invalidation and cleanup rules.",
+  "projectStateVersion": 7,
+  "summary": "Web-based app that loads real BTC historical data (free endpoint) and displays an interactive monthly candlestick chart with automated, dynamic liquidity level detection (horizontal lines + wick-based liquidity boxes) using consecutive opposite candle and breakout structure logic, with updated liquidity box lifecycle rules: untouched zones remain permanently visible until first touch, active zones (price inside / 1–3 candles) are highlighted, and only touched+cleared zones are removed (no time-based cleanup).",
   "architectural_notes": [
     "Use a fast free public market data source (no API keys) for BTC/USD or BTC/USDT monthly OHLCV.",
     "Timeframe is Monthly (1M) only for now; liquidity logic is designed specifically for 1M.",
-    "Improve BTC OHLCV data fetching robustness (handle endpoint outages/CORS/network failures) and switch to a more reliable free no-API-key data source chosen for speed/stability."
+    "Improve BTC OHLCV data fetching robustness (handle endpoint outages/CORS/network failures) and switch to a more reliable free no-API-key data source chosen for speed/stability.",
+    "Liquidity boxes are now governed solely by price interaction: untouched boxes persist indefinitely until first touch; active boxes are highlighted while price is inside / 1–3 candles form inside; only touched+cleared boxes are removed; time alone must never remove a box.",
+    "Liquidity box rendering uses 3 explicit visual states (untouched/active/removed) applied symmetrically to upper and lower zones, with re-evaluation on each new monthly candle and safeguards to prevent duplicate/overlapping boxes."
   ],
   "known_issues": [
     "BTC chart page shows 'failed to fetch data' error (started recently)."
   ],
-  "isFixRequest": true,
+  "isFixRequest": false,
   "existing_features": [
     {
       "id": "feature-fetch-real-btc-historical-monthly-ohlcv-data-from-a-fast-free-public-endpoint-no-api-key-and-expose-it-to-the-frontend-in-a-stable-format-suitable-for-charting",
@@ -91,6 +93,46 @@
         "REQ-10"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-update-the-liquidity-box-lifecycle-logic-so-that-any-liquidity-box-upper-or-lower-that-has-not-been-touched-by-price-remains-permanently-visible-on-the-chart-and-is-never-removed-due-to-time-or-distance-alone-only-price-interaction-may-invalidate-and-remove-a-box",
+      "title": "Update the liquidity box lifecycle logic so that any liquidity box (upper or lower) that has not been touched by price remains permanently visible on the chart and is never removed due to time or distance alone; only price interaction may invalidate and remove a box.",
+      "reqIds": [
+        "REQ-11"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-the-new-active-market-box-behavior-if-price-is-currently-trading-inside-a-liquidity-box-or-if-price-has-recently-entered-and-1-3-candles-are-forming-inside-it-the-box-must-remain-visible-and-be-marked-as-an-active-liquidity-zone-distinct-from-untouched-boxes",
+      "title": "Implement the new 'Active Market Box' behavior: if price is currently trading inside a liquidity box, or if price has recently entered and 1–3 candles are forming inside it, the box must remain visible and be marked as an Active Liquidity Zone distinct from untouched boxes.",
+      "reqIds": [
+        "REQ-12"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-the-touched-and-cleared-liquidity-invalidation-rule-when-price-touches-a-liquidity-box-and-then-clearly-moves-away-strong-displacement-up-or-down-and-the-market-is-no-longer-interacting-with-it-the-box-becomes-invalid-and-must-be-automatically-removed-from-the-chart-do-not-keep-any-faded-history-state-for-invalidated-liquidity",
+      "title": "Implement the 'Touched and Cleared Liquidity' invalidation rule: when price touches a liquidity box and then clearly moves away (strong displacement up or down) and the market is no longer interacting with it, the box becomes invalid and must be automatically removed from the chart; do not keep any faded history state for invalidated liquidity.",
+      "reqIds": [
+        "REQ-13"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-chart-rendering-and-legend-to-support-3-distinct-visual-states-for-liquidity-boxes-1-untouched-neutral-e-g-soft-blue-gray-semi-transparent-thin-border-2-active-strong-highlight-e-g-yellow-orange-slightly-higher-opacity-and-clearer-border-3-invalidated-not-rendered",
+      "title": "Update chart rendering and legend to support 3 distinct visual states for liquidity boxes: (1) Untouched = neutral (e.g., soft blue/gray), semi-transparent, thin border; (2) Active = strong highlight (e.g., yellow/orange), slightly higher opacity and clearer border; (3) Invalidated = not rendered.",
+      "reqIds": [
+        "REQ-14"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-liquidity-box-state-evaluation-is-deterministic-and-performant-re-evaluate-box-status-on-each-new-monthly-candle-update-colors-instantly-on-enter-exit-and-avoid-duplicate-overlapping-boxes-being-rendered-for-the-same-price-range-and-direction-while-preserving-the-existing-base-liquidity-detection-logic-consecutive-opposite-candles-breakout-tracking-wick-based-marking",
+      "title": "Ensure liquidity box state evaluation is deterministic and performant: re-evaluate box status on each new monthly candle, update colors instantly on enter/exit, and avoid duplicate/overlapping boxes being rendered for the same price range and direction while preserving the existing base liquidity detection logic (consecutive opposite candles, breakout tracking, wick-based marking).",
+      "reqIds": [
+        "REQ-15"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -119,14 +161,14 @@
       "status": "pending"
     },
     {
-      "id": "AR-5",
-      "summary": "Implement liquidity box invalidation and cleanup rules: touch+move-away removal, 1–3 candle active exception, time-based cleanup, and removal on full clear of upper liquidity",
+      "id": "AR-7",
+      "summary": "Update liquidity box lifecycle so untouched liquidity zones remain permanently visible until first price touch; remove time-based cleanup; remove boxes only when touched and clearly cleared (upper/lower symmetric)",
       "reqIds": [],
       "status": "pending"
     },
     {
-      "id": "AR-6",
-      "summary": "Apply visual styling requirements for lines and boxes (thin lines, semi-transparent boxes, distinct colors for active vs inactive before removal) and keep chart clean by removing invalidated zones",
+      "id": "AR-8",
+      "summary": "Implement 3-state liquidity box visual system: untouched (neutral semi-transparent), active (highlight color/higher opacity when price inside or 1–3 candles), invalidated (auto-removed), with continuous re-evaluation each new monthly candle and no duplicate/overlapping boxes",
       "reqIds": [],
       "status": "pending"
     }

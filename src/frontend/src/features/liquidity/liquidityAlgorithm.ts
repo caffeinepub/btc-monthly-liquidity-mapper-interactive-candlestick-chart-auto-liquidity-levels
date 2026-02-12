@@ -1,5 +1,5 @@
 import { Candle } from '../data/types';
-import { LiquidityLine, LiquidityBox, LiquidityModel } from './types';
+import { LiquidityLine, LiquidityBox, LiquidityModel, LiquidityBoxState } from './types';
 
 enum Direction {
   BULLISH = 'BULLISH',
@@ -72,13 +72,113 @@ function detectReversalStructure(
   return { lowerWick, upperWick, endIndex };
 }
 
+function isCandleInsideBox(candle: Candle, box: LiquidityBox): boolean {
+  // Check if candle's body or wicks are inside the box
+  return (
+    (candle.low <= box.maxPrice && candle.low >= box.minPrice) ||
+    (candle.high <= box.maxPrice && candle.high >= box.minPrice) ||
+    (candle.low <= box.minPrice && candle.high >= box.maxPrice) ||
+    (candle.close >= box.minPrice && candle.close <= box.maxPrice) ||
+    (candle.open >= box.minPrice && candle.open <= box.maxPrice)
+  );
+}
+
+function hasStrongDisplacement(candle: Candle, box: LiquidityBox): boolean {
+  const boxMid = (box.minPrice + box.maxPrice) / 2;
+  const boxHeight = box.maxPrice - box.minPrice;
+  
+  // Strong displacement means price moved significantly away from the box
+  const distance = Math.abs(candle.close - boxMid);
+  return distance > boxHeight * 2;
+}
+
+function computeBoxState(
+  box: LiquidityBox,
+  candles: Candle[],
+  currentIndex: number
+): { state: LiquidityBoxState; touchCount: number; lastTouchIndex: number } {
+  let touchCount = 0;
+  let lastTouchIndex = -1;
+  let firstTouchIndex = -1;
+  
+  // Track interactions with subsequent candles
+  for (let i = box.candleIndex + 1; i <= currentIndex; i++) {
+    const candle = candles[i];
+    
+    if (isCandleInsideBox(candle, box)) {
+      touchCount++;
+      lastTouchIndex = i;
+      if (firstTouchIndex === -1) {
+        firstTouchIndex = i;
+      }
+    }
+  }
+  
+  // Rule 1: Untouched boxes remain permanently visible
+  if (touchCount === 0) {
+    return { state: 'untouched', touchCount: 0, lastTouchIndex: -1 };
+  }
+  
+  // Rule 2: Active if price is currently inside or recently inside (1-3 candles)
+  const candlesSinceLastTouch = currentIndex - lastTouchIndex;
+  const recentlyActive = candlesSinceLastTouch <= 3;
+  
+  if (recentlyActive) {
+    return { state: 'active', touchCount, lastTouchIndex };
+  }
+  
+  // Rule 3: Touched and cleared - check for strong displacement away
+  if (touchCount > 0 && lastTouchIndex >= 0) {
+    const currentCandle = candles[currentIndex];
+    
+    // Check if price has moved strongly away from the box
+    if (hasStrongDisplacement(currentCandle, box)) {
+      // Verify no recent interaction (at least 2 candles away)
+      if (candlesSinceLastTouch >= 2) {
+        return { state: 'cleared', touchCount, lastTouchIndex };
+      }
+    }
+  }
+  
+  // Default: keep as untouched if touched but not cleared
+  return { state: 'untouched', touchCount, lastTouchIndex };
+}
+
+function deduplicateBoxes(boxes: LiquidityBox[]): LiquidityBox[] {
+  const deduplicated: LiquidityBox[] = [];
+  
+  for (const box of boxes) {
+    // Check if a similar box already exists
+    const similar = deduplicated.find(
+      (existing) =>
+        existing.isUpper === box.isUpper &&
+        Math.abs(existing.minPrice - box.minPrice) < (box.maxPrice - box.minPrice) * 0.1 &&
+        Math.abs(existing.maxPrice - box.maxPrice) < (box.maxPrice - box.minPrice) * 0.1
+    );
+    
+    if (!similar) {
+      deduplicated.push(box);
+    } else {
+      // Keep the one with more recent creation or better state
+      const existingIndex = deduplicated.indexOf(similar);
+      if (box.state === 'active' && similar.state !== 'active') {
+        deduplicated[existingIndex] = box;
+      } else if (box.candleIndex > similar.candleIndex && box.state === similar.state) {
+        deduplicated[existingIndex] = box;
+      }
+    }
+  }
+  
+  return deduplicated;
+}
+
 export function computeLiquidityModel(candles: Candle[]): LiquidityModel {
   if (candles.length === 0) {
     return { lines: [], boxes: [] };
   }
 
   const lines: LiquidityLine[] = [];
-  const boxes: LiquidityBox[] = [];
+  const rawBoxes: LiquidityBox[] = [];
 
   // Step 1: Initial horizontal line at first candle's lower wick
   let currentLinePrice = candles[0].low;
@@ -93,7 +193,7 @@ export function computeLiquidityModel(candles: Candle[]): LiquidityModel {
   let currentDirection = Direction.BULLISH; // Start assuming bullish
   let searchIndex = 1;
 
-  // Step 2: Process candles for breakouts and opposite candle detection
+  // Step 2: Process candles for breakouts and opposite candle detection (unchanged)
   while (searchIndex < candles.length) {
     const candle = candles[searchIndex];
 
@@ -118,26 +218,26 @@ export function computeLiquidityModel(candles: Candle[]): LiquidityModel {
 
         if (reversal) {
           // Create lower liquidity box
-          boxes.push({
+          rawBoxes.push({
             minPrice: reversal.lowerWick,
-            maxPrice: reversal.lowerWick + (reversal.upperWick - reversal.lowerWick) * 0.2, // 20% of range
+            maxPrice: reversal.lowerWick + (reversal.upperWick - reversal.lowerWick) * 0.2,
             createdAt: candles[oppositeIndex].time,
             candleIndex: oppositeIndex,
-            isActive: true,
             isUpper: false,
+            state: 'untouched',
             touchCount: 0,
             lastTouchIndex: -1,
           });
 
           // Create upper liquidity box if there's a small opposite move
           if (reversal.endIndex - oppositeIndex >= 1) {
-            boxes.push({
+            rawBoxes.push({
               minPrice: reversal.upperWick - (reversal.upperWick - reversal.lowerWick) * 0.2,
               maxPrice: reversal.upperWick,
               createdAt: candles[reversal.endIndex].time,
               candleIndex: reversal.endIndex,
-              isActive: true,
               isUpper: true,
+              state: 'untouched',
               touchCount: 0,
               lastTouchIndex: -1,
             });
@@ -156,83 +256,32 @@ export function computeLiquidityModel(candles: Candle[]): LiquidityModel {
     }
   }
 
-  // Step 3: Apply box invalidation rules
-  const activeBoxes: LiquidityBox[] = [];
+  // Step 3: Apply new lifecycle rules - compute state for each box
+  const currentIndex = candles.length - 1;
+  const processedBoxes: LiquidityBox[] = [];
 
-  boxes.forEach((box) => {
-    let shouldKeep = true;
-    let touchCount = 0;
-    let lastTouchIndex = -1;
-
-    // Check interactions with subsequent candles
-    for (let i = box.candleIndex + 1; i < candles.length; i++) {
-      const candle = candles[i];
-
-      // Check if candle touches the box
-      const touches =
-        (candle.low <= box.maxPrice && candle.low >= box.minPrice) ||
-        (candle.high <= box.maxPrice && candle.high >= box.minPrice) ||
-        (candle.low <= box.minPrice && candle.high >= box.maxPrice);
-
-      if (touches) {
-        touchCount++;
-        lastTouchIndex = i;
-
-        // Rule: If touched and then clear move away (more than 3 candles later and price far away)
-        if (i - lastTouchIndex > 3) {
-          const currentCandle = candles[candles.length - 1];
-          const boxMid = (box.minPrice + box.maxPrice) / 2;
-          const distance = Math.abs(currentCandle.close - boxMid);
-          const boxHeight = box.maxPrice - box.minPrice;
-
-          if (distance > boxHeight * 3) {
-            shouldKeep = false;
-            break;
-          }
-        }
-      }
-
-      // Rule: Upper liquidity cleared (price breaks above and stays above)
-      if (box.isUpper && candle.close > box.maxPrice) {
-        const subsequentAbove = candles.slice(i, i + 2).every((c) => c.close > box.maxPrice);
-        if (subsequentAbove) {
-          shouldKeep = false;
-          break;
-        }
-      }
-    }
-
-    // Rule: Keep active if only 1-3 candles interacted and price still around
-    if (touchCount > 0 && touchCount <= 3 && lastTouchIndex >= 0) {
-      const candlesSinceTouch = candles.length - 1 - lastTouchIndex;
-      if (candlesSinceTouch <= 5) {
-        shouldKeep = true;
-      }
-    }
-
-    // Rule: Time-based cleanup - if touched long ago and many candles passed
-    if (lastTouchIndex >= 0) {
-      const candlesSinceTouch = candles.length - 1 - lastTouchIndex;
-      if (candlesSinceTouch > 20) {
-        shouldKeep = false;
-      }
-    }
-
-    if (shouldKeep) {
-      activeBoxes.push({
+  for (const box of rawBoxes) {
+    const { state, touchCount, lastTouchIndex } = computeBoxState(box, candles, currentIndex);
+    
+    // Only keep boxes that are not cleared
+    if (state !== 'cleared') {
+      processedBoxes.push({
         ...box,
+        state,
         touchCount,
         lastTouchIndex,
-        isActive: touchCount <= 3 || lastTouchIndex < 0,
       });
     }
-  });
+  }
+
+  // Step 4: Deduplicate overlapping boxes
+  const finalBoxes = deduplicateBoxes(processedBoxes);
 
   // Keep only the most recent relevant lines (last 5)
   const recentLines = lines.slice(-5);
 
   return {
     lines: recentLines,
-    boxes: activeBoxes,
+    boxes: finalBoxes,
   };
 }

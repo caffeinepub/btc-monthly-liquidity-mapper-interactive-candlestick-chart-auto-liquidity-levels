@@ -1,17 +1,62 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-11T13:56:04.371Z",
-  "summary": "Diff switches primary BTC monthly OHLCV source to Binance 1M klines (no API key) with normalization into existing Candle format, adds timeout/error utilities plus automatic fallback to CoinGecko OHLC, and updates loading/error UI copy to be provider-agnostic.",
-  "missing_requirements": [],
-  "hallucinated_features": [],
-  "confidence": 0.74,
+  "generatedAt": "2026-02-12T04:44:03.504Z",
+  "summary": "Diff shows new liquidity box lifecycle/state machinery being introduced (LiquidityBoxState with 'untouched'/'active'/'cleared'), new interaction helpers (inside-box detection + strong displacement), and new CSS tokens for untouched vs active liquidity colors. However, several key acceptance-criteria items (active 1–3 candle rule completion, cleared-box removal from returned model, chart rendering + legend text updates, and deduplication) cannot be confirmed from the truncated diffs provided.",
+  "missing_requirements": [
+    {
+      "id": "REQ-12",
+      "requirement": "Implement the new 'Active Market Box' behavior (inside now or 1–3 candles forming inside) and ensure it updates immediately on candle changes.",
+      "reason": "The algorithm file is truncated right as it starts implementing the 'Active' rule (\"// Rule 2\" then cut at \"const candl\"), and the chart file snippet does not show how boxes are styled/rendered based on state.",
+      "evidence": [
+        "frontend/src/features/liquidity/liquidityAlgorithm.ts (truncated at Rule 2 implementation)",
+        "frontend/src/components/BtcMonthlyChart.tsx (truncated; no visible box styling logic shown)"
+      ]
+    },
+    {
+      "id": "REQ-13",
+      "requirement": "Implement 'Touched and Cleared Liquidity' invalidation so cleared zones are removed (not faded) and excluded from LiquidityModel.boxes symmetrically for upper/lower boxes.",
+      "reason": "Although a 'cleared' state and a strong-displacement helper exist, the diff does not show the completed logic that classifies a box as cleared and then actually removes/excludes it from the returned LiquidityModel.boxes.",
+      "evidence": [
+        "frontend/src/features/liquidity/types.ts (adds 'cleared' state)",
+        "frontend/src/features/liquidity/liquidityAlgorithm.ts (hasStrongDisplacement exists, but cleared removal not shown due to truncation)"
+      ]
+    },
+    {
+      "id": "REQ-14",
+      "requirement": "Update chart rendering and legend for 3-state system: Untouched vs Active visuals and legend labels ('Untouched Liquidity Zone' and 'Active Liquidity Zone'), with invalidated not rendered.",
+      "reason": "CSS tokens for untouched/active are present, but the provided BtcMonthlyChart.tsx excerpt does not include the liquidity box rendering/legend section, so the required legend labels and distinct visual styling cannot be verified from the diff snippet.",
+      "evidence": [
+        "frontend/src/index.css (adds --liquidity-untouched/active tokens)",
+        "frontend/src/components/BtcMonthlyChart.tsx (truncated; legend and ReferenceArea styling not shown)"
+      ]
+    },
+    {
+      "id": "REQ-15",
+      "requirement": "Ensure deterministic/performance-friendly state evaluation on each new monthly candle and avoid duplicate/overlapping boxes for the same zone while preserving base detection logic.",
+      "reason": "The diff excerpt does not show any completed deduplication pass (e.g., filtering materially identical min/max for same direction), and state re-evaluation wiring via the hook (useLiquidityModel) is not present in the provided modified-file snippets.",
+      "evidence": [
+        "frontend/src/features/liquidity/liquidityAlgorithm.ts (truncated; no dedup section visible)",
+        "frontend/src/components/BtcMonthlyChart.tsx (only shows useLiquidityModel usage; not the recompute implementation)"
+      ]
+    }
+  ],
+  "hallucinated_features": [
+    {
+      "description": "Broad global theme/palette overhaul in index.css beyond the specific addition of liquidity zone colors.",
+      "reason": "REQ-14 requires distinct liquidity box styling and legend updates; it does not request changing the overall app theme variables (background/foreground/card/etc.). The diff modifies many non-liquidity design tokens.",
+      "evidence": [
+        "frontend/src/index.css"
+      ]
+    }
+  ],
+  "confidence": 0.55,
   "changed_files": [
     "frontend-file-summaries.txt",
-    "frontend/src/components/ChartStates.tsx",
-    "frontend/src/features/data/fetchUtils.ts",
-    "frontend/src/features/data/types.ts",
-    "frontend/src/features/data/useMonthlyCandles.ts",
+    "frontend/src/components/BtcMonthlyChart.tsx",
+    "frontend/src/features/liquidity/liquidityAlgorithm.ts",
+    "frontend/src/features/liquidity/types.ts",
+    "frontend/src/index.css",
     "project_state.json"
   ]
 }

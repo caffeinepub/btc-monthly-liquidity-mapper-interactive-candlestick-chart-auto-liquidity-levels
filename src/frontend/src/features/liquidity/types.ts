@@ -4,13 +4,15 @@ export interface LiquidityLine {
   candleIndex: number;
 }
 
+export type LiquidityBoxState = 'untouched' | 'active' | 'cleared';
+
 export interface LiquidityBox {
   minPrice: number;
   maxPrice: number;
   createdAt: number; // timestamp
   candleIndex: number;
-  isActive: boolean;
   isUpper: boolean; // true for upper liquidity, false for lower
+  state: LiquidityBoxState; // lifecycle state
   touchCount: number;
   lastTouchIndex: number;
 }

@@ -2,11 +2,11 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-replace-the-current-coingecko-based-monthly-candle-fetch-daily-aggregation-with-a-faster-and-more-reliable-free-public-endpoint-no-api-key-that-can-return-btc-monthly-1m-ohlcv-directly-while-keeping-the-frontend-candle-format-stable-for-charting",
-      "featureTitle": "Replace the current CoinGecko-based monthly candle fetch (daily aggregation) with a faster and more reliable free public endpoint (no API key) that can return BTC monthly (1M) OHLCV directly, while keeping the frontend Candle format stable for charting.",
+      "featureId": "feature-update-the-liquidity-box-lifecycle-logic-so-that-any-liquidity-box-upper-or-lower-that-has-not-been-touched-by-price-remains-permanently-visible-on-the-chart-and-is-never-removed-due-to-time-or-distance-alone-only-price-interaction-may-invalidate-and-remove-a-box",
+      "featureTitle": "Update the liquidity box lifecycle logic so that any liquidity box (upper or lower) that has not been touched by price remains permanently visible on the chart and is never removed due to time or distance alone; only price interaction may invalidate and remove a box.",
       "files": [
-        "frontend/src/features/data/types.ts",
-        "frontend/src/features/data/useMonthlyCandles.ts"
+        "frontend/src/features/liquidity/liquidityAlgorithm.ts",
+        "frontend/src/features/liquidity/types.ts"
       ],
       "components": [
         "core-infrastructure@1.0.2",
@@ -16,16 +16,16 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-8"
+        "REQ-11"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-add-resilient-client-side-fetching-behavior-for-monthly-candles-to-prevent-intermittent-endpoint-failures-from-breaking-the-btc-chart-page-timeout-abort-clearer-error-classification-and-fallback-to-a-secondary-free-public-endpoint-if-the-primary-fails",
-      "featureTitle": "Add resilient client-side fetching behavior for monthly candles to prevent intermittent endpoint failures from breaking the BTC chart page (timeout/abort, clearer error classification, and fallback to a secondary free public endpoint if the primary fails).",
+      "featureId": "feature-implement-the-new-active-market-box-behavior-if-price-is-currently-trading-inside-a-liquidity-box-or-if-price-has-recently-entered-and-1-3-candles-are-forming-inside-it-the-box-must-remain-visible-and-be-marked-as-an-active-liquidity-zone-distinct-from-untouched-boxes",
+      "featureTitle": "Implement the new 'Active Market Box' behavior: if price is currently trading inside a liquidity box, or if price has recently entered and 1–3 candles are forming inside it, the box must remain visible and be marked as an Active Liquidity Zone distinct from untouched boxes.",
       "files": [
-        "frontend/src/features/data/fetchUtils.ts",
-        "frontend/src/features/data/useMonthlyCandles.ts"
+        "frontend/src/components/BtcMonthlyChart.tsx",
+        "frontend/src/features/liquidity/liquidityAlgorithm.ts"
       ],
       "components": [
         "core-infrastructure@1.0.2",
@@ -35,15 +35,16 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-9"
+        "REQ-12"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-update-loading-error-ui-copy-on-the-btc-chart-page-so-it-does-not-mention-a-specific-provider-e-g-coingecko-and-instead-references-market-data-generically",
-      "featureTitle": "Update loading/error UI copy on the BTC chart page so it does not mention a specific provider (e.g., CoinGecko) and instead references “market data” generically.",
+      "featureId": "feature-implement-the-touched-and-cleared-liquidity-invalidation-rule-when-price-touches-a-liquidity-box-and-then-clearly-moves-away-strong-displacement-up-or-down-and-the-market-is-no-longer-interacting-with-it-the-box-becomes-invalid-and-must-be-automatically-removed-from-the-chart-do-not-keep-any-faded-history-state-for-invalidated-liquidity",
+      "featureTitle": "Implement the 'Touched and Cleared Liquidity' invalidation rule: when price touches a liquidity box and then clearly moves away (strong displacement up or down) and the market is no longer interacting with it, the box becomes invalid and must be automatically removed from the chart; do not keep any faded history state for invalidated liquidity.",
       "files": [
-        "frontend/src/components/ChartStates.tsx"
+        "frontend/src/components/BtcMonthlyChart.tsx",
+        "frontend/src/features/liquidity/liquidityAlgorithm.ts"
       ],
       "components": [
         "core-infrastructure@1.0.2",
@@ -53,7 +54,44 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-10"
+        "REQ-13"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-update-chart-rendering-and-legend-to-support-3-distinct-visual-states-for-liquidity-boxes-1-untouched-neutral-e-g-soft-blue-gray-semi-transparent-thin-border-2-active-strong-highlight-e-g-yellow-orange-slightly-higher-opacity-and-clearer-border-3-invalidated-not-rendered",
+      "featureTitle": "Update chart rendering and legend to support 3 distinct visual states for liquidity boxes: (1) Untouched = neutral (e.g., soft blue/gray), semi-transparent, thin border; (2) Active = strong highlight (e.g., yellow/orange), slightly higher opacity and clearer border; (3) Invalidated = not rendered.",
+      "files": [
+        "frontend/src/components/BtcMonthlyChart.tsx",
+        "frontend/src/index.css"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-14"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-ensure-liquidity-box-state-evaluation-is-deterministic-and-performant-re-evaluate-box-status-on-each-new-monthly-candle-update-colors-instantly-on-enter-exit-and-avoid-duplicate-overlapping-boxes-being-rendered-for-the-same-price-range-and-direction-while-preserving-the-existing-base-liquidity-detection-logic-consecutive-opposite-candles-breakout-tracking-wick-based-marking",
+      "featureTitle": "Ensure liquidity box state evaluation is deterministic and performant: re-evaluate box status on each new monthly candle, update colors instantly on enter/exit, and avoid duplicate/overlapping boxes being rendered for the same price range and direction while preserving the existing base liquidity detection logic (consecutive opposite candles, breakout tracking, wick-based marking).",
+      "files": [
+        "frontend/src/features/liquidity/liquidityAlgorithm.ts"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-15"
       ],
       "confidence": "high"
     }
