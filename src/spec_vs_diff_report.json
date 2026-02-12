@@ -1,62 +1,73 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T04:44:03.504Z",
-  "summary": "Diff shows new liquidity box lifecycle/state machinery being introduced (LiquidityBoxState with 'untouched'/'active'/'cleared'), new interaction helpers (inside-box detection + strong displacement), and new CSS tokens for untouched vs active liquidity colors. However, several key acceptance-criteria items (active 1–3 candle rule completion, cleared-box removal from returned model, chart rendering + legend text updates, and deduplication) cannot be confirmed from the truncated diffs provided.",
+  "generatedAt": "2026-02-12T09:30:15.488Z",
+  "summary": "Implemented several frontend-side changes aimed at improving monthly liquidity-zone detection (including enhanced reversal-structure span/body-wick calculations and richer dev diagnostics) and persisting untouched boxes across recomputations. Added a development-only regression fixture runner and a hard-coded candle fixture. However, the diff summary does not provide clear evidence that the chart rendering path now deterministically maps boxes using candleIndex with clamping/stable keys, nor that coordinate-resolution render-failure warnings exist, and the REQ-30 fixture appears to run via dev console assertions rather than a frontend build/test test harness.",
   "missing_requirements": [
     {
-      "id": "REQ-12",
-      "requirement": "Implement the new 'Active Market Box' behavior (inside now or 1–3 candles forming inside) and ensure it updates immediately on candle changes.",
-      "reason": "The algorithm file is truncated right as it starts implementing the 'Active' rule (\"// Rule 2\" then cut at \"const candl\"), and the chart file snippet does not show how boxes are styled/rendered based on state.",
+      "id": "REQ-27",
+      "requirement": "With the current production BTC monthly candle dataset loaded, at least one lower LiquidityBox is present whose bounds cover the ~$27k–$25k area, and it renders in untouched/neutral style when price has not entered it.",
+      "reason": "The diff shows algorithm changes and diagnostics, but does not include evidence that the computed model on the real production dataset consistently emits a lower box specifically spanning ~$27k–$25k, nor evidence of the box’s untouched visual style on the chart for that zone.",
       "evidence": [
-        "frontend/src/features/liquidity/liquidityAlgorithm.ts (truncated at Rule 2 implementation)",
-        "frontend/src/components/BtcMonthlyChart.tsx (truncated; no visible box styling logic shown)"
+        "frontend/src/features/liquidity/liquidityAlgorithm.ts",
+        "frontend/src/features/liquidity/useLiquidityModel.ts",
+        "frontend/src/components/BtcMonthlyChart.tsx (truncated)"
       ]
     },
     {
-      "id": "REQ-13",
-      "requirement": "Implement 'Touched and Cleared Liquidity' invalidation so cleared zones are removed (not faded) and excluded from LiquidityModel.boxes symmetrically for upper/lower boxes.",
-      "reason": "Although a 'cleared' state and a strong-displacement helper exist, the diff does not show the completed logic that classifies a box as cleared and then actually removes/excludes it from the returned LiquidityModel.boxes.",
+      "id": "REQ-28",
+      "requirement": "When a box cannot be rendered due to coordinate resolution failure, log a development-only warning including box identifiers (minPrice, maxPrice, candleIndex, isUpper, state) and the resolved indices used for rendering.",
+      "reason": "No coordinate-resolution failure handling or render-time warning is visible in the provided BtcMonthlyChart.tsx diff content; the referenced behavior appears only in the prose summary file, not in the shown code excerpt.",
       "evidence": [
-        "frontend/src/features/liquidity/types.ts (adds 'cleared' state)",
-        "frontend/src/features/liquidity/liquidityAlgorithm.ts (hasStrongDisplacement exists, but cleared removal not shown due to truncation)"
+        "frontend/src/components/BtcMonthlyChart.tsx (truncated)",
+        "frontend-file-summaries.txt"
       ]
     },
     {
-      "id": "REQ-14",
-      "requirement": "Update chart rendering and legend for 3-state system: Untouched vs Active visuals and legend labels ('Untouched Liquidity Zone' and 'Active Liquidity Zone'), with invalidated not rendered.",
-      "reason": "CSS tokens for untouched/active are present, but the provided BtcMonthlyChart.tsx excerpt does not include the liquidity box rendering/legend section, so the required legend labels and distinct visual styling cannot be verified from the diff snippet.",
+      "id": "REQ-29",
+      "requirement": "Deterministically map each LiquidityBox to x-axis coordinates using candleIndex (not timestamps), clamp out-of-bounds candleIndex values and still render, render all non-cleared boxes as ReferenceArea overlays, and use stable React keys including isUpper + candleIndex + bounds.",
+      "reason": "The BtcMonthlyChart.tsx diff is truncated before any ReferenceArea rendering and key/coordinate logic is shown; thus there is insufficient evidence that candleIndex-based mapping, clamping, non-dropping behavior, and stable keys were implemented as specified.",
       "evidence": [
-        "frontend/src/index.css (adds --liquidity-untouched/active tokens)",
-        "frontend/src/components/BtcMonthlyChart.tsx (truncated; legend and ReferenceArea styling not shown)"
+        "frontend/src/components/BtcMonthlyChart.tsx (truncated)",
+        "frontend-file-summaries.txt"
       ]
     },
     {
-      "id": "REQ-15",
-      "requirement": "Ensure deterministic/performance-friendly state evaluation on each new monthly candle and avoid duplicate/overlapping boxes for the same zone while preserving base detection logic.",
-      "reason": "The diff excerpt does not show any completed deduplication pass (e.g., filtering materially identical min/max for same direction), and state re-evaluation wiring via the hook (useLiquidityModel) is not present in the provided modified-file snippets.",
+      "id": "REQ-30",
+      "requirement": "Add a development-only test/fixture (run in the frontend build/test environment) that asserts: (1) a lower box is emitted, (2) untouched boxes persist across recomputation when non-touch candles are appended, and (3) removal only after touch+cleared criteria.",
+      "reason": "A dev-only runner exists and uses console.assert, but the diff summary does not show integration into a frontend test framework/build test environment (e.g., unit test file, test runner config, or invocation from tests).",
       "evidence": [
-        "frontend/src/features/liquidity/liquidityAlgorithm.ts (truncated; no dedup section visible)",
-        "frontend/src/components/BtcMonthlyChart.tsx (only shows useLiquidityModel usage; not the recompute implementation)"
+        "frontend/src/features/liquidity/fixtures/runLiquidityRegressionFixture.ts",
+        "frontend/src/features/liquidity/fixtures/missingLowerZoneFixture.ts"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Broad global theme/palette overhaul in index.css beyond the specific addition of liquidity zone colors.",
-      "reason": "REQ-14 requires distinct liquidity box styling and legend updates; it does not request changing the overall app theme variables (background/foreground/card/etc.). The diff modifies many non-liquidity design tokens.",
+      "description": "Added lightweight-charts dependency for candlestick charting functionality.",
+      "reason": "Not requested by REQ-27–REQ-30; the request explicitly focuses on fixing missing liquidity zones and rendering determinism, not changing/adding a charting library dependency.",
       "evidence": [
-        "frontend/src/index.css"
+        "frontend-file-summaries.txt (mentions: \"frontend/package.json\": \"... lightweight-charts dependency added ...\")"
+      ]
+    },
+    {
+      "description": "Added/updated global styling tokens (OKLCH color system and liquidity zone color tokens) beyond the requested fixes.",
+      "reason": "REQ-27–REQ-30 do not request new theme/token work; they focus on detection logic, lifecycle, coordinate mapping, diagnostics, and a regression fixture.",
+      "evidence": [
+        "frontend-file-summaries.txt (mentions: \"frontend/src/index.css\": \"... new liquidity zone color tokens ...\")",
+        "frontend-file-summaries.txt (mentions: \"frontend/tailwind.config.js\": \"... extended color tokens ...\")"
       ]
     }
   ],
-  "confidence": 0.55,
+  "confidence": 0.62,
   "changed_files": [
     "frontend-file-summaries.txt",
     "frontend/src/components/BtcMonthlyChart.tsx",
+    "frontend/src/features/liquidity/diagnostics.ts",
+    "frontend/src/features/liquidity/fixtures/missingLowerZoneFixture.ts",
+    "frontend/src/features/liquidity/fixtures/runLiquidityRegressionFixture.ts",
     "frontend/src/features/liquidity/liquidityAlgorithm.ts",
-    "frontend/src/features/liquidity/types.ts",
-    "frontend/src/index.css",
+    "frontend/src/features/liquidity/useLiquidityModel.ts",
     "project_state.json"
   ]
 }

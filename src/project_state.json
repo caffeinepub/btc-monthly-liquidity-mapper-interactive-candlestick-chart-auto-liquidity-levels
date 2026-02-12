@@ -1,18 +1,26 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 7,
+  "projectStateVersion": 15,
   "summary": "Web-based app that loads real BTC historical data (free endpoint) and displays an interactive monthly candlestick chart with automated, dynamic liquidity level detection (horizontal lines + wick-based liquidity boxes) using consecutive opposite candle and breakout structure logic, with updated liquidity box lifecycle rules: untouched zones remain permanently visible until first touch, active zones (price inside / 1–3 candles) are highlighted, and only touched+cleared zones are removed (no time-based cleanup).",
   "architectural_notes": [
     "Use a fast free public market data source (no API keys) for BTC/USD or BTC/USDT monthly OHLCV.",
     "Timeframe is Monthly (1M) only for now; liquidity logic is designed specifically for 1M.",
     "Improve BTC OHLCV data fetching robustness (handle endpoint outages/CORS/network failures) and switch to a more reliable free no-API-key data source chosen for speed/stability.",
     "Liquidity boxes are now governed solely by price interaction: untouched boxes persist indefinitely until first touch; active boxes are highlighted while price is inside / 1–3 candles form inside; only touched+cleared boxes are removed; time alone must never remove a box.",
-    "Liquidity box rendering uses 3 explicit visual states (untouched/active/removed) applied symmetrically to upper and lower zones, with re-evaluation on each new monthly candle and safeguards to prevent duplicate/overlapping boxes."
+    "Liquidity box rendering uses 3 explicit visual states (untouched/active/removed) applied symmetrically to upper and lower zones, with re-evaluation on each new monthly candle and safeguards to prevent duplicate/overlapping boxes.",
+    "Strict untouched-liquidity preservation patch: untouched liquidity boxes must always be created and remain visible/extended forward; remove ALL time/distance/structure-shift cleanup; only remove a box after confirmed touch (wick/body) AND clear displacement away; keep existing Active Market Box behavior (active when price inside or 1–3 candles form inside); apply symmetrically to upper/lower zones.",
+    "Implement additive override layer for liquidity lifecycle corrections (do not replace existing strict-untouched/active rules except where overrides apply).",
+    "Persist a 'completed liquidity zones' set keyed by (price range, direction, originating structure signature) to prevent re-creating zones that were touched+cleared, unless a new valid structure forms."
   ],
   "known_issues": [
-    "BTC chart page shows 'failed to fetch data' error (started recently)."
+    "BTC chart page shows 'failed to fetch data' error (started recently).",
+    "Some detected liquidity boxes that have NOT been touched by price are disappearing or not being plotted; must never be removed except after touch + displacement.",
+    "Some upper liquidity boxes remain visible or reappear after confirmed touch + clear displacement; should be permanently removed and blocked from recreation.",
+    "Some valid lower liquidity zones created by structure logic are missing/not plotted due to hidden filtering (e.g., distance/trend/structure suppression).",
+    "Specific missing/incorrectly highlighted untouched lower liquidity zone: ~$27k–$25k (should be auto-detected from two-opposite-candle wick-based structure and rendered in untouched/neutral style, but is being skipped/mis-classified).",
+    "Build/deployment pipeline intermittently fails with an internal configuration error (\"Please report this error to the Caffeine team\"), blocking shipping fixes."
   ],
-  "isFixRequest": false,
+  "isFixRequest": true,
   "existing_features": [
     {
       "id": "feature-fetch-real-btc-historical-monthly-ohlcv-data-from-a-fast-free-public-endpoint-no-api-key-and-expose-it-to-the-frontend-in-a-stable-format-suitable-for-charting",
@@ -133,6 +141,126 @@
         "REQ-15"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-enforce-the-strict-untouched-liquidity-preservation-rule-in-the-monthly-btc-liquidity-algorithm-any-detected-liquidity-box-upper-or-lower-that-has-not-been-touched-by-price-must-always-be-created-must-remain-visible-and-must-never-be-removed-due-to-time-passed-distance-from-current-price-structure-shifts-or-new-liquidity-forming-elsewhere-only-a-confirmed-touch-followed-by-clear-displacement-away-may-invalidate-and-remove-a-box",
+      "title": "Enforce the strict untouched-liquidity preservation rule in the monthly BTC liquidity algorithm: any detected liquidity box (upper or lower) that has not been touched by price must always be created, must remain visible, and must never be removed due to time passed, distance from current price, structure shifts, or new liquidity forming elsewhere; only a confirmed touch followed by clear displacement away may invalidate and remove a box.",
+      "reqIds": [
+        "REQ-16"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-preserve-the-existing-active-market-box-behavior-while-applying-the-strict-untouched-preservation-patch-a-box-must-be-visually-marked-as-active-only-when-price-is-currently-trading-inside-it-or-when-price-has-recently-entered-and-1-3-candles-are-forming-inside-it-otherwise-it-should-render-in-the-neutral-untouched-style-unless-it-has-been-invalidated-removed",
+      "title": "Preserve the existing 'Active Market Box' behavior while applying the strict untouched-preservation patch: a box must be visually marked as Active only when price is currently trading inside it or when price has recently entered and 1–3 candles are forming inside it; otherwise it should render in the neutral untouched style unless it has been invalidated (removed).",
+      "reqIds": [
+        "REQ-17"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-any-chart-rendering-conditions-that-can-cause-a-detected-and-still-valid-liquidity-box-to-not-be-plotted-e-g-start-index-lookup-failures-ensure-rendering-is-based-on-a-deterministic-always-available-reference-to-candle-position-such-as-the-box-s-candleindex-so-a-valid-box-cannot-silently-disappear-due-to-timestamp-index-mismatches",
+      "title": "Fix any chart-rendering conditions that can cause a detected (and still-valid) liquidity box to not be plotted (e.g., start-index lookup failures). Ensure rendering is based on a deterministic, always-available reference to candle position (such as the box’s candleIndex) so a valid box cannot silently disappear due to timestamp/index mismatches.",
+      "reqIds": [
+        "REQ-18"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-debug-verification-check-in-the-frontend-liquidity-computation-path-to-guarantee-for-every-detected-liquidity-zone-if-price-has-not-touched-zone-is-true-then-box-visibility-is-true-when-this-invariant-is-violated-emit-a-clear-developer-facing-warning-and-include-enough-box-identifiers-fields-to-diagnose-without-breaking-the-ui",
+      "title": "Add a debug/verification check in the frontend liquidity computation path to guarantee: for every detected liquidity zone, if price_has_not_touched_zone is true then box_visibility is true. When this invariant is violated, emit a clear developer-facing warning (and include enough box identifiers/fields to diagnose) without breaking the UI.",
+      "reqIds": [
+        "REQ-19"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-an-additive-override-so-that-any-liquidity-box-that-has-been-touched-and-then-clearly-cleared-by-strong-displacement-is-permanently-invalidated-deleted-and-must-never-reappear-later-in-the-chart-for-the-same-historical-candles",
+      "title": "Implement an additive override so that any liquidity box that has been touched and then clearly cleared by strong displacement is permanently invalidated (deleted) and must never reappear later in the chart for the same historical candles.",
+      "reqIds": [
+        "REQ-20"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-completed-liquidity-registry-inside-the-liquidity-computation-path-that-records-the-price-range-and-direction-upper-vs-lower-of-any-touched-cleared-liquidity-zone-and-use-it-to-block-recreation-of-the-same-price-range-unless-a-genuinely-new-valid-structure-produces-a-meaningfully-different-zone",
+      "title": "Add a “completed liquidity” registry inside the liquidity computation path that records the price range and direction (upper vs lower) of any touched+cleared liquidity zone, and use it to block recreation of the same price range unless a genuinely new valid structure produces a meaningfully different zone.",
+      "reqIds": [
+        "REQ-21"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-valid-structure-detected-zone-not-invalidated-always-results-in-a-plotted-liquidity-box-with-no-suppression-based-on-distance-from-current-price-trend-bias-new-structure-replacement-or-other-implicit-filtering-this-must-fix-missing-lower-liquidity-zones-created-by-the-two-consecutive-opposite-candles-wick-based-reversal-logic",
+      "title": "Ensure “valid structure detected + zone not invalidated” always results in a plotted liquidity box, with no suppression based on distance from current price, trend bias, new-structure replacement, or other implicit filtering; this must fix missing lower liquidity zones created by the two-consecutive-opposite-candles + wick-based reversal logic.",
+      "reqIds": [
+        "REQ-22"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-liquidity-box-deduplication-and-lifecycle-evaluation-to-avoid-accidental-suppression-while-still-preventing-true-duplicates-never-deduplicate-away-distinct-non-cleared-boxes-that-differ-by-candleindex-or-materially-differ-in-bounds-only-remove-boxes-via-explicit-cleared-completed-invalidation-rules",
+      "title": "Update the liquidity box deduplication and lifecycle evaluation to avoid accidental suppression while still preventing true duplicates: never deduplicate away distinct non-cleared boxes that differ by candleIndex or materially differ in bounds; only remove boxes via explicit cleared/completed invalidation rules.",
+      "reqIds": [
+        "REQ-23"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-monthly-btc-liquidity-detection-so-the-lower-untouched-liquidity-zone-around-27k-25k-as-shown-expected-by-the-user-is-automatically-detected-from-the-existing-two-consecutive-opposite-candles-wick-based-reversal-structure-logic-and-returned-in-the-liquidity-model-as-a-lower-liquiditybox-with-state-untouched-until-first-touch",
+      "title": "Fix the monthly BTC liquidity detection so the lower untouched liquidity zone around ~$27k–$25k (as shown/expected by the user) is automatically detected from the existing “two consecutive opposite candles → wick-based reversal structure” logic and returned in the liquidity model as a lower LiquidityBox with state='untouched' (until first touch).",
+      "reqIds": [
+        "REQ-24"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-remove-or-adjust-any-reversal-structure-detection-constraints-that-can-cause-valid-wick-based-reversal-structures-to-be-missed-on-the-monthly-timeframe-e-g-reversal-opposite-move-end-detection-that-stops-too-early-ensuring-the-structure-used-to-create-the-27k-25k-lower-zone-is-recognized-reliably",
+      "title": "Remove or adjust any reversal-structure detection constraints that can cause valid wick-based reversal structures to be missed on the monthly timeframe (e.g., reversal/opposite-move end detection that stops too early), ensuring the structure used to create the ~$27k–$25k lower zone is recognized reliably.",
+      "reqIds": [
+        "REQ-25"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-developer-facing-diagnostic-warning-non-breaking-that-triggers-when-a-valid-reversal-structure-is-detected-but-no-corresponding-lower-liquidity-box-is-emitted-including-enough-identifiers-oppositestartindex-endindex-computed-wick-range-intended-box-bounds-to-diagnose-why-a-zone-would-be-skipped",
+      "title": "Add a developer-facing diagnostic warning (non-breaking) that triggers when a valid reversal structure is detected but no corresponding lower liquidity box is emitted, including enough identifiers (oppositeStartIndex, endIndex, computed wick range, intended box bounds) to diagnose why a zone would be skipped.",
+      "reqIds": [
+        "REQ-26"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-monthly-btc-liquidity-detection-so-the-expected-lower-untouched-liquidity-zone-around-27k-25k-is-consistently-emitted-by-the-reversal-structure-two-consecutive-opposite-candles-wick-based-range-logic-and-appears-in-the-computed-liquidity-model-as-a-lower-liquiditybox-with-state-untouched-until-first-touch",
+      "title": "Fix the monthly BTC liquidity detection so the expected lower untouched liquidity zone around ~$27k–$25k is consistently emitted by the reversal-structure (two consecutive opposite candles → wick-based range) logic and appears in the computed liquidity model as a lower LiquidityBox with state='untouched' until first touch.",
+      "reqIds": [
+        "REQ-27"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-liquidity-box-lifecycle-so-untouched-liquidity-boxes-touchcount-0-are-never-removed-suppressed-or-silently-not-plotted-for-any-reason-other-than-explicit-touched-cleared-invalidation-rules-i-e-no-time-based-cleanup-distance-filters-trend-bias-suppression-or-structural-replacement-may-hide-untouched-boxes",
+      "title": "Fix the liquidity box lifecycle so untouched liquidity boxes (touchCount===0) are never removed, suppressed, or silently not plotted for any reason other than explicit touched+cleared invalidation rules (i.e., no time-based cleanup, distance filters, trend-bias suppression, or structural replacement may hide untouched boxes).",
+      "reqIds": [
+        "REQ-28"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-the-chart-rendering-path-deterministically-maps-each-liquiditybox-to-x-axis-coordinates-using-candleindex-not-timestamps-and-does-not-drop-valid-boxes-due-to-start-index-lookup-failures-if-candleindex-is-out-of-bounds-clamp-it-and-still-render-the-box-from-the-nearest-valid-candle-to-the-latest-candle",
+      "title": "Ensure the chart rendering path deterministically maps each LiquidityBox to x-axis coordinates using candleIndex (not timestamps) and does not drop valid boxes due to start-index lookup failures; if candleIndex is out of bounds, clamp it and still render the box from the nearest valid candle to the latest candle.",
+      "reqIds": [
+        "REQ-29"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-small-deterministic-developer-regression-fixture-for-liquidity-detection-a-minimal-hard-coded-candle-sequence-that-reproduces-the-missing-lower-zone-scenario-and-verifies-1-a-lower-box-is-emitted-2-it-remains-present-when-untouched-and-3-it-only-disappears-after-touched-cleared-rules-are-met",
+      "title": "Add a small, deterministic developer regression fixture for liquidity detection (a minimal hard-coded candle sequence) that reproduces the missing-lower-zone scenario and verifies: (1) a lower box is emitted, (2) it remains present when untouched, and (3) it only disappears after touched+cleared rules are met.",
+      "reqIds": [
+        "REQ-30"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -169,6 +297,36 @@
     {
       "id": "AR-8",
       "summary": "Implement 3-state liquidity box visual system: untouched (neutral semi-transparent), active (highlight color/higher opacity when price inside or 1–3 candles), invalidated (auto-removed), with continuous re-evaluation each new monthly candle and no duplicate/overlapping boxes",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-9",
+      "summary": "Add a debug/verification check to guarantee: if a detected liquidity zone has not been touched by price, its box must remain visible and extended forward (no silent deletion)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-10",
+      "summary": "Add additive override: permanently invalidate (delete) any liquidity box after confirmed touch + clear displacement; ensure invalidated zones never reappear as historical/ghost boxes",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-11",
+      "summary": "Track and persist a 'completed liquidity' registry (price range + direction) to block recreation of already touched+cleared zones unless a genuinely new valid structure forms",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-12",
+      "summary": "Additive override to force-plot any valid, non-invalidated liquidity zone created by structure logic (two consecutive opposite candles / wick-based reversal); remove any distance-from-price suppression",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-13",
+      "summary": "Remove/disable any silent filtering that suppresses liquidity zones (distance thresholds, new-structure suppression, trend-bias filtering); detection/visibility must be structure + invalidation-state based only",
       "reqIds": [],
       "status": "pending"
     }

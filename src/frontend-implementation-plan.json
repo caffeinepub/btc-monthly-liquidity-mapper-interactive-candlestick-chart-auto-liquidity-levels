@@ -1,112 +1,104 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Permanent liquidity zones with 3-state lifecycle + chart styling",
+  "title": "Fix missing BTC monthly liquidity zones and ensure untouched boxes persist/render deterministically",
   "requirements": [
     {
-      "id": "REQ-11",
-      "summary": "Keep all untouched liquidity boxes permanently visible until first price interaction; never remove due to time/distance alone.",
+      "id": "REQ-27",
+      "summary": "Ensure monthly reversal-structure detection consistently emits the expected ~$27k–$25k lower untouched LiquidityBox and adds dev-only diagnostics when creation is skipped.",
       "acceptanceCriteria": [
-        "Given a computed liquidity box that has no recorded touch since its creation, it remains present in the returned LiquidityModel.boxes for all subsequent candles until the first touch occurs.",
-        "No rule removes a box solely because many candles have passed or because price moved far away without first touching the box.",
-        "The updated behavior applies symmetrically to both upper (isUpper=true) and lower (isUpper=false) boxes."
+        "With the current production BTC monthly candle dataset loaded, at least one lower LiquidityBox is present whose bounds cover the ~$27k–$25k area (i.e., minPrice and maxPrice fall within that expected zone).",
+        "The ~$27k–$25k box renders on the chart in the neutral/untouched style (not active) when price has not entered it.",
+        "If a reversal structure is detected that should produce the ~$27k–$25k lower zone but box creation is skipped, a development-only diagnostic warning is emitted including oppositeStartIndex, endIndex, computed wick/body bounds, and the skip reason."
       ],
       "file_operations": [
         {
           "path": "frontend/src/features/liquidity/liquidityAlgorithm.ts",
           "operation": "modify",
-          "description": "Update post-processing lifecycle management so boxes with zero interactions since creation are never removed for time/distance reasons; ensure touch tracking is computed deterministically from candle interactions and applied symmetrically for upper/lower boxes while preserving the existing box creation/detection logic (Step 1–2)."
+          "description": "Adjust monthly reversal-structure scanning to avoid premature end/cap behavior that can prevent lower-zone emission, and harden lower-box bounds derivation so valid wick-to-body ranges (including the ~$27k–$25k zone) are consistently produced when reversal structures exist."
         },
         {
-          "path": "frontend/src/features/liquidity/types.ts",
+          "path": "frontend/src/features/liquidity/diagnostics.ts",
           "operation": "modify",
-          "description": "Adjust liquidity box typing to support explicit lifecycle/state output (e.g., distinguish untouched vs active) while maintaining existing wick-based minPrice/maxPrice coordinates and direction flag (isUpper)."
-        }
-      ]
-    },
-    {
-      "id": "REQ-12",
-      "summary": "Classify and mark an 'Active Liquidity Zone' when price is trading inside a box or has 1–3 recent candles forming inside it; keep it visible and visually distinct.",
-      "acceptanceCriteria": [
-        "A liquidity box is classified as Active when the current/latest candle is inside the box, or when the most recent interactions include 1–3 candles inside the box as defined by the updated interaction logic.",
-        "Active classification is recomputed whenever the candle series changes (e.g., new monthly candle arrives), and the UI updates immediately to reflect changes.",
-        "An untouched box (never touched) is not rendered with the Active styling unless price is currently inside it (i.e., it becomes Active when entered)."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/features/liquidity/liquidityAlgorithm.ts",
-          "operation": "modify",
-          "description": "Implement Active Market Box classification during lifecycle evaluation: compute whether the latest candle is inside a box and/or whether the most recent 1–3 candles include an in-box sequence; output the active state per box without introducing any time-based expiry."
-        },
-        {
-          "path": "frontend/src/components/BtcMonthlyChart.tsx",
-          "operation": "modify",
-          "description": "Update box rendering to use the new Active classification for styling and to ensure the active/untouched visual change happens immediately on candle-series updates (based on the updated liquidity model output)."
-        }
-      ]
-    },
-    {
-      "id": "REQ-13",
-      "summary": "Remove liquidity boxes after they are touched and then clearly displaced away with no ongoing interaction; do not render any faded history state.",
-      "acceptanceCriteria": [
-        "Once a box is determined to be 'touched and cleared' under the updated rules, it is excluded from LiquidityModel.boxes and therefore no longer rendered.",
-        "No separate 'inactive but visible' (faded) state remains for invalidated liquidity; invalidated zones disappear entirely.",
-        "The same touch-and-clear removal logic applies to both upper and lower liquidity boxes (no directional bias)."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/features/liquidity/liquidityAlgorithm.ts",
-          "operation": "modify",
-          "description": "Replace existing invalidation rules with a touch-and-clear rule: once a box has at least one touch, evaluate for clear displacement away and lack of interaction; if satisfied, exclude it from the returned boxes (no 'inactive but visible' state). Ensure logic is symmetric for upper/lower boxes and does not remove untouched boxes."
-        },
-        {
-          "path": "frontend/src/components/BtcMonthlyChart.tsx",
-          "operation": "modify",
-          "description": "Remove any UI assumptions for a third 'inactive/faded' rendered state so invalidated boxes are simply not present (and therefore not drawn)."
-        }
-      ]
-    },
-    {
-      "id": "REQ-14",
-      "summary": "Render liquidity boxes in 3 states: Untouched (neutral), Active (highlight), Invalidated (not rendered); update the legend accordingly in English.",
-      "acceptanceCriteria": [
-        "Untouched boxes render with a neutral fill and thin border that is visually distinct from Active boxes.",
-        "Active boxes render with a highlight fill and stronger border and are clearly distinguishable from Untouched boxes.",
-        "The legend labels and swatches reflect the new states: 'Untouched Liquidity Zone' and 'Active Liquidity Zone'; no 'Inactive Zone' legend item remains if invalidated zones are removed rather than faded.",
-        "All user-facing labels are in English."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/components/BtcMonthlyChart.tsx",
-          "operation": "modify",
-          "description": "Update ReferenceArea styling rules to support exactly two rendered styles (Untouched vs Active) and ensure invalidated zones are not rendered at all; update legend items to 'Untouched Liquidity Zone' and 'Active Liquidity Zone' and remove the 'Inactive Zone' legend entry (keep all labels in English)."
-        },
-        {
-          "path": "frontend/src/index.css",
-          "operation": "modify",
-          "description": "Add/adjust global theme tokens (CSS variables) for liquidity zone fills/borders (neutral vs highlight) so chart styling is consistent and easy to tune without changing rendering logic."
-        }
-      ]
-    },
-    {
-      "id": "REQ-15",
-      "summary": "Make lifecycle evaluation deterministic and performant on each new monthly candle; instantly update enter/exit colors; prevent duplicate/overlapping boxes while preserving base detection logic and wick-based coordinates.",
-      "acceptanceCriteria": [
-        "The reversal/box creation logic remains functionally the same as before; only lifecycle/state classification and rendering behavior changes.",
-        "When the candles array changes (React Query refresh/new candle), liquidity boxes are recomputed and their state (Untouched vs Active vs Removed) is updated accordingly without requiring a manual refresh.",
-        "The model does not return multiple overlapping/duplicate boxes for the same logical zone (same direction and materially identical min/max bounds) after lifecycle processing.",
-        "All boxes use the wick-derived minPrice/maxPrice coordinates produced by the existing algorithm, without introducing non-wick-based coordinates."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/features/liquidity/liquidityAlgorithm.ts",
-          "operation": "modify",
-          "description": "Ensure lifecycle/state evaluation is purely derived from the current candles array (deterministic), computed in a single pass where possible (performance), and add a post-processing deduplication/merge step to avoid duplicate/overlapping boxes for the same direction and materially identical wick bounds—without altering the existing box creation logic or non-wick coordinates."
+          "description": "Extend development-only skipped-box diagnostics to include computed body bounds (lowerBodyBound/upperBodyBound) alongside wick bounds and the skip reason, ensuring the warning payload contains oppositeStartIndex, endIndex, wick/body bounds, and reason."
         },
         {
           "path": "frontend/src/features/liquidity/useLiquidityModel.ts",
           "operation": "modify",
-          "description": "Confirm memoization dependencies correctly re-trigger model recomputation on monthly candle updates and that the hook returns the updated state immediately for chart re-rendering (no manual refresh)."
+          "description": "Add a development-only sanity assertion that specifically checks for at least one lower untouched LiquidityBox whose bounds intersect the expected ~$27k–$25k zone when using the production BTC monthly dataset, to catch regressions early without affecting production behavior."
+        }
+      ]
+    },
+    {
+      "id": "REQ-28",
+      "summary": "Guarantee untouched liquidity boxes (touchCount===0) are never removed/suppressed by recomputation, filtering, or replacement; add dev-only warnings when a box cannot be plotted.",
+      "acceptanceCriteria": [
+        "For every LiquidityBox with touchCount===0, the algorithm returns state==='untouched' and the chart renders it (no missing boxes due to coordinate/index resolution).",
+        "No code path removes or filters out boxes solely because they are old, far from current price, or replaced by newer structure (unless they have been touched and then clearly cleared per the existing rules).",
+        "When a box cannot be rendered due to coordinate resolution failure, a development-only warning is logged that includes the box identifiers (minPrice, maxPrice, candleIndex, isUpper, state) and the resolved indices used for rendering."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/features/liquidity/liquidityAlgorithm.ts",
+          "operation": "modify",
+          "description": "Refactor lifecycle evaluation into exported helpers so previously-emitted boxes can be re-evaluated against the latest candles and only removed when 'touched+cleared' criteria are met; ensure no time/distance/trend/structure replacement logic suppresses boxes with touchCount===0."
+        },
+        {
+          "path": "frontend/src/features/liquidity/useLiquidityModel.ts",
+          "operation": "modify",
+          "description": "Persist and merge liquidity boxes across recomputations (e.g., when candles append/refetch) so untouched boxes remain present even if newer structure detection would otherwise omit them; re-evaluate persisted boxes against the latest candles and drop only those that become 'cleared'."
+        },
+        {
+          "path": "frontend/src/components/BtcMonthlyChart.tsx",
+          "operation": "modify",
+          "description": "Ensure all non-cleared boxes are rendered and add development-only rendering warnings when coordinate resolution fails, including minPrice, maxPrice, candleIndex, isUpper, state, and the resolved start/end indices used for plotting."
+        }
+      ]
+    },
+    {
+      "id": "REQ-29",
+      "summary": "Make liquidity box rendering deterministically map x-axis coordinates by candleIndex (clamped) and never drop valid boxes due to lookup failures; use stable React keys to prevent flicker.",
+      "acceptanceCriteria": [
+        "All boxes returned by the liquidity algorithm render as ReferenceArea overlays unless their state is 'cleared' (which must not be returned/rendered).",
+        "Boxes with candleIndex < 0 render starting at the first candle; boxes with candleIndex > last index render starting at the last candle; in both cases they extend to the latest candle.",
+        "Rendering uses stable React keys that prevent flicker/re-mounting when new candles load (keys include isUpper + candleIndex + bounds)."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/BtcMonthlyChart.tsx",
+          "operation": "modify",
+          "description": "Update ReferenceArea x1/x2 mapping to be strictly candleIndex-based with clamping and guaranteed fallback to nearest valid candle label; replace idx-based keys with stable keys derived from isUpper + candleIndex + minPrice + maxPrice; ensure dev-only warnings (not production) when x-axis coordinate resolution fails."
+        },
+        {
+          "path": "frontend/src/features/liquidity/useLiquidityModel.ts",
+          "operation": "modify",
+          "description": "Add development-only invariants ensuring no non-cleared boxes are dropped before rendering and that box candleIndex values are normalized/clamped consistently for rendering expectations."
+        }
+      ]
+    },
+    {
+      "id": "REQ-30",
+      "summary": "Add a deterministic developer regression fixture (minimal hard-coded candles) that reproduces missing lower-zone behavior and verifies box emission/persistence/clearing lifecycle.",
+      "acceptanceCriteria": [
+        "A new development-only test/fixture (run in the frontend build/test environment) asserts that the computed liquidity model includes at least one lower LiquidityBox for the fixture sequence.",
+        "The fixture asserts untouched boxes remain in the returned model across recomputation when additional candles are appended that do not touch the box.",
+        "The fixture asserts a box is removed only when the fixture includes a confirmed touch followed by clear displacement satisfying the existing cleared criteria."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/features/liquidity/fixtures/missingLowerZoneFixture.ts",
+          "operation": "create",
+          "description": "Create a minimal hard-coded monthly candle sequence designed to trigger the two-consecutive-opposite reversal structure and produce a lower wick-based liquidity range representative of the missing lower-zone scenario."
+        },
+        {
+          "path": "frontend/src/features/liquidity/fixtures/runLiquidityRegressionFixture.ts",
+          "operation": "create",
+          "description": "Implement a development-only regression runner that computes the liquidity model on the fixture sequence, uses deterministic assertions (e.g., throwing or console.assert/console.error) to verify: (1) at least one lower box is emitted, (2) untouched boxes remain after appending non-touch candles, and (3) boxes are removed only after touch+clear criteria are satisfied."
+        },
+        {
+          "path": "frontend/src/main.tsx",
+          "operation": "modify",
+          "description": "Wire the regression fixture runner to execute only in development builds (guarded by import.meta.env.DEV) so it runs in the frontend dev/test environment without impacting production behavior."
         }
       ]
     }

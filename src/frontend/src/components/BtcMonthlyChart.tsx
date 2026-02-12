@@ -32,7 +32,6 @@ interface CandleChartData {
 export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
   const { lines, boxes } = useLiquidityModel(candles);
 
-  // Convert candles to chart format
   const chartData = useMemo<CandleChartData[]>(() => {
     return candles.map((candle) => {
       const date = new Date(candle.time);
@@ -50,7 +49,6 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
     });
   }, [candles]);
 
-  // Calculate price range for better chart scaling
   const priceRange = useMemo(() => {
     if (candles.length === 0) return { min: 0, max: 100000 };
     const allPrices = candles.flatMap((c) => [c.high, c.low]);
@@ -92,7 +90,6 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
     );
   };
 
-  // Custom shape for candlestick rendering
   const CandlestickShape = (props: any) => {
     const { x, y, width, height, payload } = props;
     if (!payload || !payload.open || !payload.close || !payload.high || !payload.low) return null;
@@ -100,17 +97,14 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
     const { open, close, high, low, color } = payload;
     const isGreen = close >= open;
 
-    // Calculate dimensions
     const centerX = x + width / 2;
     const bodyTop = Math.min(open, close);
     const bodyBottom = Math.max(open, close);
     const bodyHeight = Math.abs(close - open);
 
-    // Scale factor for converting price to pixels
-    const chartHeight = 600 - 40; // Approximate chart height minus margins
+    const chartHeight = 600 - 40;
     const pricePerPixel = (priceRange.max - priceRange.min) / chartHeight;
 
-    // Calculate Y positions (inverted because SVG Y increases downward)
     const highY = y - ((high - bodyBottom) / pricePerPixel);
     const lowY = y + height + ((bodyTop - low) / pricePerPixel);
     const bodyY = y;
@@ -118,7 +112,6 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
 
     return (
       <g>
-        {/* Upper wick */}
         <line
           x1={centerX}
           y1={highY}
@@ -127,7 +120,6 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
           stroke={color}
           strokeWidth={1}
         />
-        {/* Lower wick */}
         <line
           x1={centerX}
           y1={bodyY + bodyPixelHeight}
@@ -136,7 +128,6 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
           stroke={color}
           strokeWidth={1}
         />
-        {/* Body */}
         <rect
           x={x + 1}
           y={bodyY}
@@ -182,33 +173,53 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
           />
           <Tooltip content={<CustomTooltip />} />
 
-          {/* Liquidity boxes with 3-state rendering */}
-          {boxes.map((box, idx) => {
-            const startIndex = candles.findIndex((c) => c.time >= box.createdAt);
-            if (startIndex === -1) return null;
+          {/* REQ-28 & REQ-29: Render all non-cleared boxes with stable keys */}
+          {boxes.map((box) => {
+            const startIndex = Math.max(0, Math.min(box.candleIndex, candles.length - 1));
+            const x1 = chartData[startIndex]?.time;
+            const x2 = chartData[chartData.length - 1]?.time;
+            
+            // REQ-28: Development-only rendering warning
+            if (!x1 || !x2) {
+              if (import.meta.env.DEV) {
+                console.warn(
+                  '[RENDERING WARNING] Liquidity box coordinate resolution failed:',
+                  {
+                    minPrice: box.minPrice,
+                    maxPrice: box.maxPrice,
+                    candleIndex: box.candleIndex,
+                    isUpper: box.isUpper,
+                    state: box.state,
+                    resolvedStartIndex: startIndex,
+                    chartDataLength: chartData.length,
+                  }
+                );
+              }
+              return null;
+            }
 
-            // 3-state color system
             let fillColor: string;
             let strokeColor: string;
             let fillOpacity: number;
             
             if (box.state === 'active') {
-              // Active: Strong highlight (yellow/orange)
               fillColor = 'hsl(var(--liquidity-active))';
               strokeColor = 'hsl(var(--liquidity-active-border))';
               fillOpacity = 0.2;
             } else {
-              // Untouched: Neutral (soft blue/gray)
               fillColor = 'hsl(var(--liquidity-untouched))';
               strokeColor = 'hsl(var(--liquidity-untouched-border))';
               fillOpacity = 0.15;
             }
 
+            // REQ-29: Stable React key to prevent flicker
+            const stableKey = `box-${box.isUpper ? 'U' : 'L'}-${box.candleIndex}-${box.minPrice.toFixed(2)}-${box.maxPrice.toFixed(2)}`;
+
             return (
               <ReferenceArea
-                key={`box-${idx}`}
-                x1={chartData[startIndex]?.time}
-                x2={chartData[chartData.length - 1]?.time}
+                key={stableKey}
+                x1={x1}
+                x2={x2}
                 y1={box.minPrice}
                 y2={box.maxPrice}
                 fill={fillColor}
@@ -220,52 +231,42 @@ export function BtcMonthlyChart({ candles }: BtcMonthlyChartProps) {
             );
           })}
 
-          {/* Liquidity lines */}
           {lines.map((line, idx) => (
             <ReferenceLine
               key={`line-${idx}`}
               y={line.price}
               stroke="hsl(var(--accent))"
-              strokeWidth={1}
+              strokeWidth={1.5}
               strokeDasharray="5 5"
               label={{
-                value: 'Liq',
+                value: `$${line.price.toLocaleString()}`,
+                position: 'right',
                 fill: 'hsl(var(--accent))',
                 fontSize: 10,
-                position: 'right',
               }}
             />
           ))}
 
-          {/* Candlesticks using Bar with custom shape */}
-          <Bar dataKey="range" shape={<CandlestickShape />}>
+          <Bar dataKey="range" shape={<CandlestickShape />} isAnimationActive={false}>
             {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
+              <Cell key={`cell-${index}`} />
             ))}
           </Bar>
         </ComposedChart>
       </ResponsiveContainer>
 
-      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-6 text-sm">
         <div className="flex items-center gap-2">
-          <div className="h-3 w-8 rounded-sm border border-[hsl(var(--accent))] bg-[hsl(var(--accent))]" style={{ opacity: 0.3 }} />
-          <span className="text-muted-foreground">Liquidity Line</span>
+          <div className="h-3 w-8 rounded border border-[hsl(var(--liquidity-untouched-border))] bg-[hsl(var(--liquidity-untouched))] opacity-60" />
+          <span className="text-muted-foreground">Untouched Liquidity</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-8 rounded-sm border-[1.5px] border-[hsl(var(--liquidity-active-border))] bg-[hsl(var(--liquidity-active))]" style={{ opacity: 0.25 }} />
-          <span className="text-muted-foreground">Active Liquidity Zone</span>
+          <div className="h-3 w-8 rounded border border-[hsl(var(--liquidity-active-border))] bg-[hsl(var(--liquidity-active))] opacity-70" />
+          <span className="text-muted-foreground">Active Zone (1-3 candles)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-8 rounded-sm border border-[hsl(var(--liquidity-untouched-border))] bg-[hsl(var(--liquidity-untouched))]" style={{ opacity: 0.2 }} />
-          <span className="text-muted-foreground">Untouched Liquidity Zone</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-sm bg-[hsl(var(--chart-2))]" />
-          <span className="text-muted-foreground">Bullish</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-sm bg-[hsl(var(--destructive))]" />
-          <span className="text-muted-foreground">Bearish</span>
+          <div className="h-0.5 w-8 bg-[hsl(var(--accent))]" style={{ backgroundImage: 'repeating-linear-gradient(to right, hsl(var(--accent)) 0, hsl(var(--accent)) 5px, transparent 5px, transparent 10px)' }} />
+          <span className="text-muted-foreground">Liquidity Lines</span>
         </div>
       </div>
     </div>

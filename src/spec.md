@@ -1,13 +1,12 @@
 # Specification
 
 ## Summary
-**Goal:** Update liquidity box lifecycle and rendering so untouched zones stay permanently visible, active zones are highlighted when price is interacting, and cleared zones are removed—without changing the underlying liquidity detection algorithm.
+**Goal:** Fix missing BTC monthly liquidity zones so the expected ~$27k–$25k lower untouched box is consistently detected and rendered, and ensure untouched liquidity boxes never disappear.
 
 **Planned changes:**
-- Adjust liquidity box lifecycle rules so untouched (never price-touched) upper/lower boxes are never removed due to time passing or price moving away without a touch.
-- Add “Active Liquidity Zone” state when price is currently inside a box or when 1–3 recent candles are forming inside it; recompute state on monthly candle updates and update styling immediately on enter/exit.
-- Implement “Touched and Cleared” invalidation so boxes are removed from the model and chart once touched and then clearly displaced away with no ongoing interaction (no faded/history rendering).
-- Update chart rendering and legend to use 3 states: Untouched (neutral, semi-transparent, thin border), Active (highlight, higher opacity, clearer border), Invalidated (not rendered), with English labels and no “Inactive” legend item.
-- Ensure deterministic, performant recomputation on candle series updates and prevent duplicate/overlapping boxes for the same logical zone while preserving existing wick-based coordinates and base detection logic.
+- Adjust monthly BTC liquidity detection to consistently emit the lower untouched liquidity zone around ~$27k–$25k from the reversal-structure (two consecutive opposite candles → wick-based range) logic, and keep it in the computed model as state=`untouched` until first touch.
+- Fix liquidity box lifecycle so any box with `touchCount===0` is always preserved and plotted (no suppression/removal due to age, distance, trend bias, replacement, or other non-touch filters).
+- Make chart rendering deterministically map each LiquidityBox to x-axis coordinates using `candleIndex` (not timestamps), clamp out-of-bounds indices, and ensure all non-`cleared` boxes render with stable React keys; add dev-only warnings when creation is skipped or rendering cannot resolve coordinates.
+- Add a small dev-only regression fixture (minimal hard-coded candles) that reproduces the missing-lower-zone scenario and asserts: lower box is emitted, remains while untouched across recomputation, and only disappears after touched+cleared rules are met.
 
-**User-visible outcome:** On the chart, untouched liquidity zones persist until first interaction, zones the market is currently trading within are clearly highlighted as active, and zones that have been touched and then cleared disappear automatically; the legend reflects only Untouched and Active states.
+**User-visible outcome:** On the Monthly BTC chart, the lower liquidity zone around ~$27k–$25k appears reliably as an untouched (neutral) box until price touches it, and untouched zones do not vanish unexpectedly.

@@ -1,118 +1,94 @@
 {
   "kind": "build_request",
-  "title": "Update liquidity box lifecycle to permanent-untouched visibility + 3-state color system",
-  "priority": "normal",
+  "title": "Fix missing BTC monthly liquidity zones (ensure 27k–25k lower box appears and untouched boxes never disappear)",
+  "priority": "high",
   "requirements": [
     {
-      "id": "REQ-11",
-      "text": "Update the liquidity box lifecycle logic so that any liquidity box (upper or lower) that has not been touched by price remains permanently visible on the chart and is never removed due to time or distance alone; only price interaction may invalidate and remove a box.",
+      "id": "REQ-27",
+      "text": "Fix the monthly BTC liquidity detection so the expected lower untouched liquidity zone around ~$27k–$25k is consistently emitted by the reversal-structure (two consecutive opposite candles → wick-based range) logic and appears in the computed liquidity model as a lower LiquidityBox with state='untouched' until first touch.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-user-1"
+          "msg-1"
         ],
         "quotes": [
-          "Any liquidity box (upper or lower) that has NOT been touched by price yet must: Remain permanently visible on the chart. Never be automatically removed.",
-          "Time alone must NOT remove a box. Only price interaction determines removal."
+          "Your web is still not working right and not highlight the required points",
+          "1 eg  27-25",
+          "2 zones are missing"
         ]
       },
       "acceptanceCriteria": [
-        "Given a computed liquidity box that has no recorded touch since its creation, it remains present in the returned LiquidityModel.boxes for all subsequent candles until the first touch occurs.",
-        "No rule removes a box solely because many candles have passed or because price moved far away without first touching the box.",
-        "The updated behavior applies symmetrically to both upper (isUpper=true) and lower (isUpper=false) boxes."
+        "With the current production BTC monthly candle dataset loaded, at least one lower LiquidityBox is present whose bounds cover the ~$27k–$25k area (i.e., minPrice and maxPrice fall within that expected zone).",
+        "The ~$27k–$25k box renders on the chart in the neutral/untouched style (not active) when price has not entered it.",
+        "If a reversal structure is detected that should produce the ~$27k–$25k lower zone but box creation is skipped, a development-only diagnostic warning is emitted including oppositeStartIndex, endIndex, computed wick/body bounds, and the skip reason."
       ]
     },
     {
-      "id": "REQ-12",
-      "text": "Implement the new 'Active Market Box' behavior: if price is currently trading inside a liquidity box, or if price has recently entered and 1–3 candles are forming inside it, the box must remain visible and be marked as an Active Liquidity Zone distinct from untouched boxes.",
+      "id": "REQ-28",
+      "text": "Fix the liquidity box lifecycle so untouched liquidity boxes (touchCount===0) are never removed, suppressed, or silently not plotted for any reason other than explicit touched+cleared invalidation rules (i.e., no time-based cleanup, distance filters, trend-bias suppression, or structural replacement may hide untouched boxes).",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-user-1"
+          "msg-1"
         ],
         "quotes": [
-          "If: Price is currently trading inside a liquidity box OR Price has recently entered the box and 1–3 candles are forming inside it Then: That box must remain visible. That box must be marked as an “Active Liquidity Zone”. It must have a visually distinct color from untouched liquidity boxes."
+          "3 removing untouched boxes",
+          "3 liquidity logic is wrong"
         ]
       },
       "acceptanceCriteria": [
-        "A liquidity box is classified as Active when the current/latest candle is inside the box, or when the most recent interactions include 1–3 candles inside the box as defined by the updated interaction logic.",
-        "Active classification is recomputed whenever the candle series changes (e.g., new monthly candle arrives), and the UI updates immediately to reflect changes.",
-        "An untouched box (never touched) is not rendered with the Active styling unless price is currently inside it (i.e., it becomes Active when entered)."
+        "For every LiquidityBox with touchCount===0, the algorithm returns state==='untouched' and the chart renders it (no missing boxes due to coordinate/index resolution).",
+        "No code path removes or filters out boxes solely because they are old, far from current price, or replaced by newer structure (unless they have been touched and then clearly cleared per the existing rules).",
+        "When a box cannot be rendered due to coordinate resolution failure, a development-only warning is logged that includes the box identifiers (minPrice, maxPrice, candleIndex, isUpper, state) and the resolved indices used for rendering."
       ]
     },
     {
-      "id": "REQ-13",
-      "text": "Implement the 'Touched and Cleared Liquidity' invalidation rule: when price touches a liquidity box and then clearly moves away (strong displacement up or down) and the market is no longer interacting with it, the box becomes invalid and must be automatically removed from the chart; do not keep any faded history state for invalidated liquidity.",
+      "id": "REQ-29",
+      "text": "Ensure the chart rendering path deterministically maps each LiquidityBox to x-axis coordinates using candleIndex (not timestamps) and does not drop valid boxes due to start-index lookup failures; if candleIndex is out of bounds, clamp it and still render the box from the nearest valid candle to the latest candle.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-user-1"
+          "msg-1"
         ],
         "quotes": [
-          "If: Price touches a liquidity box AND Price clearly moves away from it (strong displacement up or down) AND The market is no longer interacting with it Then: That box becomes invalid. That box must be automatically removed from the chart.",
-          "Invalidated Liquidity Automatically removed from chart. Do not keep faded history."
+          "zones are missing"
         ]
       },
       "acceptanceCriteria": [
-        "Once a box is determined to be 'touched and cleared' under the updated rules, it is excluded from LiquidityModel.boxes and therefore no longer rendered.",
-        "No separate 'inactive but visible' (faded) state remains for invalidated liquidity; invalidated zones disappear entirely.",
-        "The same touch-and-clear removal logic applies to both upper and lower liquidity boxes (no directional bias)."
+        "All boxes returned by the liquidity algorithm render as ReferenceArea overlays unless their state is 'cleared' (which must not be returned/rendered).",
+        "Boxes with candleIndex < 0 render starting at the first candle; boxes with candleIndex > last index render starting at the last candle; in both cases they extend to the latest candle.",
+        "Rendering uses stable React keys that prevent flicker/re-mounting when new candles load (keys include isUpper + candleIndex + bounds)."
       ]
     },
     {
-      "id": "REQ-14",
-      "text": "Update chart rendering and legend to support 3 distinct visual states for liquidity boxes: (1) Untouched = neutral (e.g., soft blue/gray), semi-transparent, thin border; (2) Active = strong highlight (e.g., yellow/orange), slightly higher opacity and clearer border; (3) Invalidated = not rendered.",
+      "id": "REQ-30",
+      "text": "Add a small, deterministic developer regression fixture for liquidity detection (a minimal hard-coded candle sequence) that reproduces the missing-lower-zone scenario and verifies: (1) a lower box is emitted, (2) it remains present when untouched, and (3) it only disappears after touched+cleared rules are met.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-user-1"
+          "msg-1"
         ],
         "quotes": [
-          "Implement 3 distinct visual states: 1️⃣ Untouched Liquidity Boxes Color: Neutral (for example, soft blue or gray) Semi-transparent Thin border",
-          "2️⃣ Active Liquidity Box (Price Currently Inside) Color: Strong highlight color (for example, yellow or orange) Slightly higher opacity Clear border",
-          "3️⃣ Invalidated Liquidity Automatically removed from chart. Do not keep faded history."
+          "zones are missing",
+          "removing untouched boxes"
         ]
       },
       "acceptanceCriteria": [
-        "Untouched boxes render with a neutral fill and thin border that is visually distinct from Active boxes.",
-        "Active boxes render with a highlight fill and stronger border and are clearly distinguishable from Untouched boxes.",
-        "The legend labels and swatches reflect the new states: 'Untouched Liquidity Zone' and 'Active Liquidity Zone'; no 'Inactive Zone' legend item remains if invalidated zones are removed rather than faded.",
-        "All user-facing labels are in English."
-      ]
-    },
-    {
-      "id": "REQ-15",
-      "text": "Ensure liquidity box state evaluation is deterministic and performant: re-evaluate box status on each new monthly candle, update colors instantly on enter/exit, and avoid duplicate/overlapping boxes being rendered for the same price range and direction while preserving the existing base liquidity detection logic (consecutive opposite candles, breakout tracking, wick-based marking).",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-user-1"
-        ],
-        "quotes": [
-          "The base liquidity detection logic (consecutive opposite candles, breakout tracking, wick-based marking, etc.) must remain unchanged.",
-          "Continuously monitor real-time monthly candle updates. Automatically re-evaluate box status on each new candle. Instantly update box color if price enters or exits. Maintain performance and avoid duplicate overlapping boxes. Use precise wick-based coordinates only."
-        ]
-      },
-      "acceptanceCriteria": [
-        "The reversal/box creation logic remains functionally the same as before; only lifecycle/state classification and rendering behavior changes.",
-        "When the candles array changes (React Query refresh/new candle), liquidity boxes are recomputed and their state (Untouched vs Active vs Removed) is updated accordingly without requiring a manual refresh.",
-        "The model does not return multiple overlapping/duplicate boxes for the same logical zone (same direction and materially identical min/max bounds) after lifecycle processing.",
-        "All boxes use the wick-derived minPrice/maxPrice coordinates produced by the existing algorithm, without introducing non-wick-based coordinates."
+        "A new development-only test/fixture (run in the frontend build/test environment) asserts that the computed liquidity model includes at least one lower LiquidityBox for the fixture sequence.",
+        "The fixture asserts untouched boxes remain in the returned model across recomputation when additional candles are appended that do not touch the box.",
+        "The fixture asserts a box is removed only when the fixture includes a confirmed touch followed by clear displacement satisfying the existing cleared criteria."
       ]
     }
   ],
   "constraints": [
-    "Do not change the base liquidity detection logic (consecutive opposite candles, breakout tracking, wick-based marking). Only modify liquidity box management/state and color behavior as requested.",
-    "Do not remove liquidity boxes due to time passed or distance moved without touch; time alone must not remove a box.",
-    "Apply the same lifecycle rules to both upper and lower liquidity boxes (no directional bias).",
-    "Frontend files listed as immutable in SYSTEM_CONTEXT must not be edited; compose around them if needed.",
-    "All user-facing text must be in English."
+    "Frontend must not modify any files under frontend/src/components/ui or any paths listed in frontend.immutablePaths.",
+    "Backend must remain a single Motoko actor in backend/main.mo; only create backend/migration.mo if a state migration is strictly required.",
+    "Use English for any user-facing UI text and messages."
   ],
   "nonGoals": [
-    "Adding multiple timeframe options or timeframe switching.",
-    "Changing the BTC market data providers/endpoints or the candle normalization format.",
-    "Adding a historical/faded rendering mode for invalidated liquidity zones (invalidated zones must be removed).",
-    "Implementing real-time streaming via WebSockets or other push mechanisms (re-evaluation occurs on monthly candle updates available to the app)."
+    "Adding new timeframes (the chart remains Monthly/1M only).",
+    "Changing the market data provider strategy beyond what is required to fix missing zones and ensure the chart works reliably.",
+    "Fixing Caffeine build/deployment infrastructure issues (e.g., internal configuration errors) beyond adding code-side diagnostics or safeguards."
   ],
   "imageRequirements": {
     "required": [],
